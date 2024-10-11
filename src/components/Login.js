@@ -1,21 +1,45 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
 import logo from '../logo.svg';
 
+
 const Login = () => {
-  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
-      console.log('Google User logged in', result.user);
-      navigate('/'); // Navigate to home page
+      const userDoc = doc(db, 'users', result.user.uid);
+      const userSnap = await getDoc(userDoc);
+
+      if (userSnap.exists()) {
+        const role = userSnap.data().role;
+        switch (role) {
+          case 'admin':
+            navigate('/admin');
+            break;
+          case 'manager':
+            navigate('/manager');
+            break;
+          case 'client':
+            navigate('/client');
+            break;
+          case 'agent':
+            navigate('/agent');
+            break;
+          default:
+            navigate('/access-denied');
+        }
+      } else {
+        navigate('/access-denied');
+      }
     } catch (error) {
-      setError(error.message);
+      console.error('Error during sign-in:', error);
+      navigate('/access-denied');
     }
   };
 
@@ -49,7 +73,6 @@ const Login = () => {
         </svg>
         <span>Sign in with Google</span>
       </button>
-      {error && <p>{error}</p>}
     </div>
   );
 };

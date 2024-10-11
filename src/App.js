@@ -1,42 +1,26 @@
+// App.js - Main Application
 import React from 'react';
 import './App.css';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Login from './components/Login';
-import { auth } from './firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import logo from './logo.svg';
+import AdminPage from './components/AdminPage';
+import ManagerPage from './components/ManagerPage';
+import ClientPage from './components/ClientPage';
+import AgentPage from './components/AgentPage';
+import AccessDeniedPage from './components/AccessDeniedPage';
 
 function App() {
-  const [user, setUser] = React.useState(null);
-
-  React.useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-    });
-    return () => unsubscribe();
-  }, []);
-
   return (
-    <div className="App">
-      {user ? (
-        <header className="App-header">
-          <img src={logo} className="App-logo" alt="logo" />
-          <p>
-            Edit <code>src/App.js</code> and save to reload.
-          </p>
-          <a
-            className="App-link"
-            href="https://reactjs.org"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Learn React
-          </a>
-        </header>
-      ) : (
-        <Login />
-      )}
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/manager" element={<ManagerPage />} />
+        <Route path="/client" element={<ClientPage />} />
+        <Route path="/agent" element={<AgentPage />} />
+        <Route path="/access-denied" element={<AccessDeniedPage />} />
+      </Routes>
+    </Router>
   );
 }
-
 export default App;
