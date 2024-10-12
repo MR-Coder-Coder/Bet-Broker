@@ -102,7 +102,7 @@ const ManagerPage = () => {
     }
   };
 
-  const renderTable = (title, transactions, showAssign, showDecline = true) => (
+  const renderTable = (title, transactions, showAssign, showDecline = true, showCheckbox = false, showDropdown = false, showResult = false) => (
     <div>
       <h2>{title}</h2>
       <table>
@@ -110,6 +110,9 @@ const ManagerPage = () => {
           <tr>
             <th>Transaction ID</th>
             <th>Amount</th>
+            {showCheckbox && <th>Update Status</th>}
+            {showDropdown && <th>Set Result</th>}
+            {showResult && <th>Result</th>}
             <th>Actions</th>
           </tr>
         </thead>
@@ -118,6 +121,53 @@ const ManagerPage = () => {
             <tr key={transaction.id}>
               <td>{transaction.id}</td>
               <td>{transaction.amount}</td>
+              {showCheckbox && (
+                <td>
+                  <input
+                    type="checkbox"
+                    onChange={async (e) => {
+                      if (e.target.checked) {
+                        const transactionRef = doc(db, 'transactions', transaction.id);
+                        await updateDoc(transactionRef, {
+                          status: 'Closed-UnSettled'
+                        });
+
+                        // Write message to messages_agents collection for each assigned agent
+                        for (const agentId of transaction.AssignedAgents || []) {
+                          await addDoc(collection(db, 'messages_agents'), {
+                            transactionId: transaction.id,
+                            timestamp: new Date(),
+                            AgentId: agentId,
+                            message: 'Manager has closed transaction'
+                          });
+                        }
+                      }
+                    }}
+                  />
+                </td>
+              )}
+              {showDropdown && (
+                <td>
+                  <select
+                    onChange={async (e) => {
+                      const selectedResult = e.target.value;
+                      if (selectedResult) {
+                        const transactionRef = doc(db, 'transactions', transaction.id);
+                        await updateDoc(transactionRef, {
+                          status: 'Closed-Settled',
+                          result: selectedResult
+                        });
+                      }
+                    }}
+                  >
+                    <option value="">Select Result</option>
+                    <option value="win">Win</option>
+                    <option value="lose">Lose</option>
+                    <option value="void">Void</option>
+                  </select>
+                </td>
+              )}
+              {showResult && <td>{transaction.result}</td>}
               <td>
                 {showAssign && <button onClick={() => handleAssign(transaction)}>Assign</button>}
                 {showDecline && <button onClick={() => handleDecline(transaction)}>Decline</button>}
@@ -133,9 +183,9 @@ const ManagerPage = () => {
     <div>
       <h1>Manager Dashboard</h1>
       {renderTable('Open Requests', transactions.filter(t => t.status === 'Open'), true)}
-      {renderTable('In-Progress', transactions.filter(t => t.status === 'In-Progress'), true)}
-      {renderTable('Closed - UnSettled', transactions.filter(t => t.status === 'Closed-UnSettled'), false)}
-      {renderTable('Closed - Settled', transactions.filter(t => t.status === 'Closed-Settled'), false)}
+      {renderTable('In-Progress', transactions.filter(t => t.status === 'In-Progress'), true, true, true)}
+      {renderTable('Closed - UnSettled', transactions.filter(t => t.status === 'Closed-UnSettled'), false, false, false, true)}
+      {renderTable('Closed - Settled', transactions.filter(t => t.status === 'Closed-Settled'), false, false, false, false, true)}
       {renderTable('Declined', transactions.filter(t => t.status === 'Declined'), false, false)}
 
       {/* Decline Modal */}
