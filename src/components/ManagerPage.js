@@ -4,6 +4,7 @@ import { db } from '../firebase';
 
 const ManagerPage = () => {
   const [transactions, setTransactions] = useState([]);
+  const [messages, setMessages] = useState({});
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -20,13 +21,35 @@ const ManagerPage = () => {
     // Query to get transactions by different statuses
     const q = query(transactionsRef, where('status', 'in', ['Open', 'In-Progress', 'Closed-UnSettled', 'Closed-Settled', 'Declined']));
 
-    // Set up a real-time listener
+    // Set up a real-time listener for transactions
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const allTransactions = [];
-      querySnapshot.forEach((doc) => {
-        allTransactions.push({ id: doc.id, ...doc.data() });
-      });
+      const allTransactions = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTransactions(allTransactions);
+    });
+
+    // Set up a real-time listener for messages_agents
+    const messagesQuery = collection(db, 'messages_agents');
+    const unsubscribeMessages = onSnapshot(messagesQuery, (querySnapshot) => {
+      const newMessages = {};
+
+      querySnapshot.forEach((doc) => {
+        const message = doc.data();
+        const transactionId = message.transactionId;
+
+        // Initialize if transaction ID not yet tracked
+        if (!newMessages[transactionId]) {
+          newMessages[transactionId] = { messageCount: 0, amountTotal: 0 };
+        }
+
+        newMessages[transactionId].messageCount += 1;
+
+        // Sum amounts if the amount field exists
+        if (message.amount) {
+          newMessages[transactionId].amountTotal += parseFloat(message.amount);
+        }
+      });
+
+      setMessages(newMessages);
     });
 
     // Set up a real-time listener for agents collection
@@ -39,9 +62,10 @@ const ManagerPage = () => {
       setAgents(agentList);
     });
 
-    // Cleanup function to unsubscribe from the listener when the component unmounts
+    // Cleanup function to unsubscribe from listeners when the component unmounts
     return () => {
       unsubscribe();
+      unsubscribeMessages();
       unsubscribeAgents();
     };
   }, []);
@@ -89,9 +113,9 @@ const ManagerPage = () => {
         await addDoc(collection(db, 'messages_agents'), {
           transactionId: selectedTransaction.id,
           timestamp: new Date(),
-          AgentId: agentId,
-          BetLimit: betLimit,
-          SeekPrice: seekPrice,
+          agentId: agentId,
+          betlimit: betLimit,
+          seekprice: seekPrice,
           message: agentMessage
         });
       }
@@ -109,7 +133,9 @@ const ManagerPage = () => {
         <thead>
           <tr>
             <th>Transaction ID</th>
-            <th>Amount</th>
+            <th>Details</th> {/* Changed Amount to Details */}
+            <th>Message Count</th>
+            <th>Amount Total</th>
             {showCheckbox && <th>Update Status</th>}
             {showDropdown && <th>Set Result</th>}
             {showResult && <th>Result</th>}
@@ -120,7 +146,11 @@ const ManagerPage = () => {
           {transactions.map((transaction) => (
             <tr key={transaction.id}>
               <td>{transaction.id}</td>
-              <td>{transaction.amount}</td>
+              <td>
+                {`${transaction.bet || ''}, ${transaction.event || ''}, ${transaction.league || ''}, ${transaction.market || ''}`}
+              </td>
+              <td>{messages[transaction.id]?.messageCount || 0}</td>
+              <td>{messages[transaction.id]?.amountTotal || 0}</td>
               {showCheckbox && (
                 <td>
                   <input
@@ -137,7 +167,7 @@ const ManagerPage = () => {
                           await addDoc(collection(db, 'messages_agents'), {
                             transactionId: transaction.id,
                             timestamp: new Date(),
-                            AgentId: agentId,
+                            agentId: agentId,
                             message: 'Manager has closed transaction'
                           });
                         }
