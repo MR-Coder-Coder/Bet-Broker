@@ -12,11 +12,14 @@ const ManagerPage = () => {
   const [messages, setMessages] = useState({});
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [agents, setAgents] = useState([]);
   const [selectedAgents, setSelectedAgents] = useState([]);
   const [betLimit, setBetLimit] = useState('');
   const [seekPrice, setSeekPrice] = useState('');
+  const [clientAmount, setClientAmount] = useState('');
+  const [clientPrice, setClientPrice] = useState('');
   const [agentMessage, setAgentMessage] = useState('');
 
   // Fetching Transactions, Messages, and Agents Data
@@ -48,15 +51,27 @@ const ManagerPage = () => {
 
         // Initialize if transaction ID not yet tracked
         if (!newMessages[transactionId]) {
-          newMessages[transactionId] = { messageCount: 0, amountTotal: 0 };
+          newMessages[transactionId] = { messageCount: 0, amountTotal: 0, blendedPriceNumerator: 0 };
         }
 
         newMessages[transactionId].messageCount += 1;
 
         // Sum amounts if the amount field exists
         if (message.amount) {
-          newMessages[transactionId].amountTotal += parseFloat(message.amount);
+          const amount = parseFloat(message.amount);
+          newMessages[transactionId].amountTotal += amount;
+
+          // Calculate blended price numerator (amount * price)
+          if (message.price) {
+            newMessages[transactionId].blendedPriceNumerator += amount * parseFloat(message.price);
+          }
         }
+      });
+
+      // Calculate blended price for each transaction
+      Object.keys(newMessages).forEach((transactionId) => {
+        const data = newMessages[transactionId];
+        data.blendedPrice = data.amountTotal > 0 ? data.blendedPriceNumerator / data.amountTotal : 0;
       });
 
       setMessages(newMessages);
@@ -103,6 +118,16 @@ const ManagerPage = () => {
     setSeekPrice(transaction.seekprice || '');
     setAgentMessage('');
     setShowAssignModal(true);
+  };
+
+  // Handle Close Transaction
+  const handleClose = (transaction) => {
+    setSelectedTransaction(transaction);
+    setBetLimit(transaction.betlimit || '');
+    setSeekPrice(transaction.requestprice || '');
+    setClientAmount(messages[transaction.id]?.amountTotal || '');
+    setClientPrice(transaction.requestprice || '');
+    setShowCloseModal(true);
   };
 
   // Handle Decline Submit
@@ -152,6 +177,37 @@ const ManagerPage = () => {
     }
   };
 
+  // Handle Close Submit
+  const handleCloseSubmit = async () => {
+    if (selectedTransaction) {
+      const transactionRef = doc(db, 'transactions', selectedTransaction.id);
+      await updateDoc(transactionRef, {
+        status: 'Closed-UnSettled',
+      });
+
+      for (const agentId of selectedTransaction.AssignedAgents || []) {
+        await addDoc(collection(db, 'messages_agents'), {
+          transactionId: selectedTransaction.id,
+          timestamp: new Date(),
+          agentId: agentId,
+          message: 'Manager has closed transaction',
+          type: 'close',
+        });
+      }
+
+      await addDoc(collection(db, 'messages_client'), {
+        transactionId: selectedTransaction.id,
+        timestamp: new Date(),
+        type: 'client_fill',
+        client_amount: clientAmount,
+        client_price: clientPrice,
+      });
+
+      setShowCloseModal(false);
+      setSelectedTransaction(null);
+    }
+  };
+
   // Render Table Function
   const renderTable = (title, transactions, showAssign, showDecline = true, showCheckbox = false, showDropdown = false, showResult = false) => (
     <div className="mb-8">
@@ -162,6 +218,7 @@ const ManagerPage = () => {
             <th className="border border-gray-700 p-4">Details</th>
             {title !== 'Open Requests' && <th className="border border-gray-700 p-4">Message Count</th>}
             {title !== 'Open Requests' && <th className="border border-gray-700 p-4">Amount Total</th>}
+            {title !== 'Open Requests' && <th className="border border-gray-700 p-4">Blended Price</th>}
             <th className="border border-gray-700 p-4">Request By</th>
             <th className="border border-gray-700 p-4">System Date</th>
             <th className="border border-gray-700 p-4">Bet Limit</th>
@@ -180,6 +237,7 @@ const ManagerPage = () => {
               </td>
               {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{messages[transaction.id]?.messageCount || 0}</td>}
               {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{messages[transaction.id]?.amountTotal || 0}</td>}
+              {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{messages[transaction.id]?.blendedPrice.toFixed(2) || 0}</td>}
               <td className="border border-gray-700 p-4">{transaction.requestby || 'N/A'}</td>
               <td className="border border-gray-700 p-4">{transaction.systemdate}</td>
               <td className="border border-gray-700 p-4">{transaction.betlimit || 'N/A'}</td>
@@ -249,6 +307,14 @@ const ManagerPage = () => {
                     Decline
                   </button>
                 )}
+                {title === 'In-Progress' && (
+                  <button
+                    onClick={() => handleClose(transaction)}
+                    className="bg-green-600 text-white p-2 rounded m-1"
+                  >
+                    Close
+                  </button>
+                )}
               </td>
             </tr>
           ))}
@@ -291,7 +357,6 @@ const ManagerPage = () => {
           </div>
         </div>
       )}
-
 
       {/* Assign Modal */}
       {showAssignModal && (
@@ -356,6 +421,55 @@ const ManagerPage = () => {
                   Submit
                 </button>
                 <button onClick={() => setShowAssignModal(false)} className="bg-gray-500 text-white p-2 rounded">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close Modal */}
+      {showCloseModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-gray-800 p-6 rounded shadow-lg text-white">
+            <h3 className="text-lg font-bold">Close Transaction</h3>
+            {/* Modal Content */}
+            <div className="mt-4">
+              <div className="mt-4">
+                <p><strong>Bet Limit:</strong> {betLimit}</p>
+                <p><strong>Request Price:</strong> {seekPrice}</p>
+                <p><strong>Amount Total:</strong> {clientAmount}</p>
+                <p><strong>Blended Price:</strong> {messages[selectedTransaction.id]?.blendedPrice.toFixed(2) || 0}</p>
+              </div>
+              <div className="mt-4">
+                <h4>Assign to Client</h4>
+                <label>
+                  Client Amount:
+                  <input
+                    type="text"
+                    value={clientAmount}
+                    onChange={(e) => setClientAmount(e.target.value)}
+                    className="p-2 border border-gray-500 rounded w-full bg-gray-700 text-white"
+                  />
+                </label>
+              </div>
+              <div className="mt-4">
+                <label>
+                  Client Price:
+                  <input
+                    type="text"
+                    value={clientPrice}
+                    onChange={(e) => setClientPrice(e.target.value)}
+                    className="p-2 border border-gray-500 rounded w-full bg-gray-700 text-white"
+                  />
+                </label>
+              </div>
+              <div className="mt-4">
+                <button onClick={handleCloseSubmit} className="bg-green-600 text-white p-2 rounded mr-2">
+                  Submit
+                </button>
+                <button onClick={() => setShowCloseModal(false)} className="bg-gray-500 text-white p-2 rounded">
                   Close
                 </button>
               </div>
