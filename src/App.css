@@ -1,34 +1,9 @@
-/* App.css - Styling */
-.App {
-  text-align: center;
-}
+/* Set Up Tailwind Directives in Your CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(12px + 3vmin);
-  color: white;
-}
-
-.App-link {
-  color: #61dafb;
-}
-
+/* Optional: Custom Animation */
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);
@@ -38,48 +13,7 @@
   }
 }
 
-.login-form {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin-top: 80px;
-}
-
-.login-logo {
-  width: 500px;
-  margin-bottom: 30px;
-}
-
-.google-sign-in-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: white;
-  border: 2px solid #d3d3d3;
-  padding: 15px 30px;
-  border-radius: 8px;
-  font-size: 18px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.google-sign-in-button:hover {
-  background-color: #f0f0f0;
-}
-
-.google-icon {
-  width: 32px;
-  height: 32px;
-  margin-right: 15px;
-}
-
-h2 {
-  font-size: 32px;
-  margin-bottom: 25px;
-}
-
-p {
-  font-size: 16px;
-  color: red;
+.App-logo {
+  @apply w-40 h-40; /* or use width/height directly in the JSX */
+  animation: App-logo-spin infinite 20s linear; /* Keep if you want the spinning effect */
 }

@@ -5,7 +5,6 @@ import { auth, db } from '../firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import logo from '../logo.svg';
 
-
 const Login = () => {
   const navigate = useNavigate();
 
@@ -44,14 +43,17 @@ const Login = () => {
   };
 
   return (
-    <div className="login-form">
-      <img src={logo} alt="Logo" className="login-logo" />
-      <h2>Login</h2>
-      <button onClick={handleGoogleSignIn} className="google-sign-in-button">
+    <div className="login-form bg-gray-900 text-white flex flex-col items-center mt-20">
+      <img src={logo} alt="Logo" className="login-logo mb-8" style={{ width: '480px', height: '480px' }} />
+      <h2 className="text-4xl font-bold mb-6">Login</h2>
+      <button
+        onClick={handleGoogleSignIn}
+        className="google-sign-in-button flex items-center px-4 py-2 rounded bg-white text-black shadow-md hover:bg-gray-100 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+      >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
-          className="google-icon"
+          className="google-icon w-6 h-6 mr-2"
           aria-hidden="true"
         >
           <path

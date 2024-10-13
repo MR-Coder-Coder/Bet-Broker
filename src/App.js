@@ -8,6 +8,8 @@ import ManagerPage from './components/ManagerPage';
 import ClientPage from './components/ClientPage';
 import AgentPage from './components/AgentPage';
 import AccessDeniedPage from './components/AccessDeniedPage';
+import './output.css';
+
 
 function App() {
   return (
