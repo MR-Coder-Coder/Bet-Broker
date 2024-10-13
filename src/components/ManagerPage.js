@@ -222,11 +222,12 @@ const ManagerPage = () => {
                         });
                       }
                     }}
+                    className="p-2 rounded w-full bg-gray-700 text-white border border-gray-500"
                   >
-                    <option value="">Select Result</option>
-                    <option value="win">Win</option>
-                    <option value="lose">Lose</option>
-                    <option value="void">Void</option>
+                    <option value="" className="bg-gray-800 text-white">Select Result</option>
+                    <option value="win" className="bg-gray-800 text-white">Win</option>
+                    <option value="lose" className="bg-gray-800 text-white">Lose</option>
+                    <option value="void" className="bg-gray-800 text-white">Void</option>
                   </select>
                 </td>
               )}
@@ -276,7 +277,7 @@ const ManagerPage = () => {
       {/* Decline Modal */}
       {showDeclineModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-white p-6 rounded shadow-lg dark:bg-gray-800 dark:text-white">
+          <div className="bg-gray-800 p-6 rounded shadow-lg text-white">
             <h3 className="text-lg font-bold">Decline Request</h3>
             <p>Message: "Sorry, Cannot fulfill that request"</p>
             <div className="mt-4">
@@ -290,6 +291,7 @@ const ManagerPage = () => {
           </div>
         </div>
       )}
+
 
       {/* Assign Modal */}
       {showAssignModal && (
