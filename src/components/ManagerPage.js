@@ -3,6 +3,7 @@ import { collection, query, where, onSnapshot, updateDoc, doc, addDoc } from 'fi
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
+import { handleTransactionResult, generateAgentJournals, generateAdditionalJournals } from './transactionLogic'; // Import the business logic
 
 const ManagerPage = () => {
   const navigate = useNavigate();
@@ -194,13 +195,16 @@ const ManagerPage = () => {
           type: 'close',
         });
       }
+      // Convert clientAmount and clientPrice to numbers
+      const clientAmountNumber = parseFloat(clientAmount) || 0; // Default to 0 if conversion fails
+      const clientPriceNumber = parseFloat(clientPrice) || 0;
 
       await addDoc(collection(db, 'messages_client'), {
         transactionId: selectedTransaction.id,
         timestamp: new Date(),
         type: 'client_fill',
-        client_amount: clientAmount,
-        client_price: clientPrice,
+        client_amount: clientAmountNumber,  // Use the number here
+        client_price: clientPriceNumber,    // Use the number here
       });
 
       setShowCloseModal(false);
@@ -273,11 +277,9 @@ const ManagerPage = () => {
                     onChange={async (e) => {
                       const selectedResult = e.target.value;
                       if (selectedResult) {
-                        const transactionRef = doc(db, 'transactions', transaction.id);
-                        await updateDoc(transactionRef, {
-                          status: 'Closed-Settled',
-                          result: selectedResult,
-                        });
+                        await handleTransactionResult(transaction.id, selectedResult);  // Call the separate function
+                        const lastJrnlNo = await generateAgentJournals(transaction.id, selectedResult);  // Call the separate function
+                        await generateAdditionalJournals(transaction.id, selectedResult, lastJrnlNo);
                       }
                     }}
                     className="p-2 rounded w-full bg-gray-700 text-white border border-gray-500"
@@ -326,12 +328,18 @@ const ManagerPage = () => {
   return (
     <div className="relative bg-gray-900 text-white p-4 min-h-screen">
       {/* Logout Button */}
-      <button
-        onClick={handleLogout}
-        className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded shadow-md hover:bg-red-600"
-      >
-        Logout
-      </button>
+        <button
+          onClick={handleLogout}
+          className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded shadow-md hover:bg-red-600"
+        >
+          Logout
+        </button>
+        <button
+          onClick={() => navigate('/reports')}  // Add this button for Reports
+          className="absolute top-4 right-24 bg-blue-500 text-white p-2 rounded shadow-md hover:bg-blue-600"
+        >
+          Reports
+        </button>
 
       <h1 className="text-3xl font-bold mb-6">Manager Dashboard</h1>
       {renderTable('Open Requests', transactions.filter((t) => t.status === 'Open'), true)}
