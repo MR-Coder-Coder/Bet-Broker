@@ -22,6 +22,9 @@ const ManagerPage = () => {
   const [clientAmount, setClientAmount] = useState('');
   const [clientPrice, setClientPrice] = useState('');
   const [agentMessage, setAgentMessage] = useState('');
+  const [showMessagesModal, setShowMessagesModal] = useState(false); // To toggle the modal
+  const [transactionMessages, setTransactionMessages] = useState([]); // To store fetched messages
+
 
   // Fetching Transactions, Messages, and Agents Data
   useEffect(() => {
@@ -95,6 +98,24 @@ const ManagerPage = () => {
       unsubscribeAgents();
     };
   }, []);
+
+  const handleViewMessages = (transaction) => {
+    const messagesQuery = query(
+      collection(db, 'messages_agents'),
+      where('transactionId', '==', transaction.id)
+    );
+  
+    onSnapshot(messagesQuery, (snapshot) => {
+      const fetchedMessages = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  
+      // Sort messages by timestamp (ascending order)
+      const sortedMessages = fetchedMessages.sort((a, b) => a.timestamp.toMillis() - b.timestamp.toMillis());
+  
+      setTransactionMessages(sortedMessages); // Store the fetched messages
+      setShowMessagesModal(true); // Open the modal
+    });
+  };
+  
 
   // Handle Logout
   const handleLogout = async () => {
@@ -212,6 +233,71 @@ const ManagerPage = () => {
     }
   };
 
+  const formatDate = (timestamp) => {
+    return new Date(timestamp.seconds * 1000).toLocaleString();
+  };
+  
+
+  const renderMessage = (message) => {
+    let content = null;
+    let containerClass = 'p-2 bg-gray-700 rounded'; // Default container style
+  
+    switch (message.type) {
+      case 'assign':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Seek Price: ${message.seekprice || 0}, Bet Limit: ${message.betlimit || ''}, Agent: ${message.agentId || ''}`}</div>
+          </>
+        );
+        break;
+  
+      case 'agent_finish':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Agent: ${message.agentName || ''}, Message: ${message.message || ''}`}</div>
+          </>
+        );
+        containerClass += ' ml-4 bg-green-700'; // Indent and color change for agent_finish
+        break;
+  
+      case 'agent_fill':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Price: ${message.price || 0}, Amount: ${message.amount || 0}, Notes: ${message.notes || ''}, Agent: ${message.agentName || ''}`}</div>
+          </>
+        );
+        containerClass += ' ml-4 bg-blue-700'; // Indent and color change for agent_fill
+        break;
+
+      case 'close':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Message: ${message.message || ''}`}</div>
+          </>
+        );
+        break;
+  
+      default:
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Amount: ${message.amount || 0}, Notes: ${message.notes || ''}`}</div>
+          </>
+        );
+        break;
+    }
+  
+    return (
+      <li key={message.id} className={containerClass}>
+        {content}
+      </li>
+    );
+  };
+
   // Render Table Function
   const renderTable = (title, transactions, showAssign, showDecline = true, showCheckbox = false, showDropdown = false, showResult = false) => (
     <div className="mb-8">
@@ -227,7 +313,6 @@ const ManagerPage = () => {
             <th className="border border-gray-700 p-4">System Date</th>
             <th className="border border-gray-700 p-4">Bet Limit</th>
             <th className="border border-gray-700 p-4">Request Price</th>
-            {showCheckbox && <th className="border border-gray-700 p-4">Update Status</th>}
             {showDropdown && <th className="border border-gray-700 p-4">Set Result</th>}
             {showResult && <th className="border border-gray-700 p-4">Result</th>}
             <th className="border border-gray-700 p-4">Actions</th>
@@ -246,31 +331,6 @@ const ManagerPage = () => {
               <td className="border border-gray-700 p-4">{transaction.systemdate}</td>
               <td className="border border-gray-700 p-4">{transaction.betlimit || 'N/A'}</td>
               <td className="border border-gray-700 p-4">{transaction.requestprice || 'N/A'}</td>
-              {showCheckbox && (
-                <td className="border border-gray-700 p-4">
-                  <input
-                    type="checkbox"
-                    onChange={async (e) => {
-                      if (e.target.checked) {
-                        const transactionRef = doc(db, 'transactions', transaction.id);
-                        await updateDoc(transactionRef, {
-                          status: 'Closed-UnSettled',
-                        });
-
-                        for (const agentId of transaction.AssignedAgents || []) {
-                          await addDoc(collection(db, 'messages_agents'), {
-                            transactionId: transaction.id,
-                            timestamp: new Date(),
-                            agentId: agentId,
-                            message: 'Manager has closed transaction',
-                            type: 'close',
-                          });
-                        }
-                      }
-                    }}
-                  />
-                </td>
-              )}
               {showDropdown && (
                 <td className="border border-gray-700 p-4">
                   <select
@@ -317,6 +377,13 @@ const ManagerPage = () => {
                     Close
                   </button>
                 )}
+                {/* Add the View Messages button */}
+                <button
+                  onClick={() => handleViewMessages(transaction)}
+                  className="bg-yellow-600 text-white p-2 rounded m-1"
+                >
+                  View Messages
+                </button>
               </td>
             </tr>
           ))}
@@ -483,8 +550,25 @@ const ManagerPage = () => {
               </div>
             </div>
           </div>
+        </div>        
+      )}
+
+      {/* View Messages */}
+      {showMessagesModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-gray-800 p-6 rounded shadow-lg text-white">
+            <h3 className="text-lg font-bold">Messages for Transaction</h3>
+            <ul className="mt-4 space-y-2">
+              {transactionMessages.map((message) => renderMessage(message))}
+            </ul>
+            <button onClick={() => setShowMessagesModal(false)} className="bg-gray-500 text-white p-2 rounded mt-4">
+              Close
+            </button>
+          </div>
         </div>
       )}
+
+
     </div>
   );
 };

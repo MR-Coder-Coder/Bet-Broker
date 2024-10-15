@@ -156,6 +156,7 @@ const AgentDashboard = () => {
       amount: parseFloat(amount),
       notes,
       type: 'agent_fill',
+      agentName,
     };
 
     addDoc(collection(db, 'messages_agents'), messageData)
@@ -192,67 +193,62 @@ const AgentDashboard = () => {
               <th className="border border-gray-700 p-4">Status</th>
               <th className="border border-gray-700 p-4">Message Count</th>
               <th className="border border-gray-700 p-4">Amount Total</th>
-              {showActions && <th className="border border-gray-700 p-4">Actions</th>}
+              <th className="border border-gray-700 p-4">Actions</th> {/* Keep actions for both tables */}
             </tr>
           </thead>
           <tbody>
             {sortedTransactions.map((transaction) => {
-              // Split the bet at '@' and extract the team
               const [team, value] = transaction.bet ? transaction.bet.split('@').map(str => str.trim()) : ['', ''];
-              // Append the seekprice
-              const minimumPrice = `${team} @ ${transaction.seekprice || value}`; 
+              const minimumPrice = `${team} @ ${transaction.seekprice || value}`;
   
               return (
                 <tr key={transaction.id}>
-                  {/* Display system date */}
                   <td className="border border-gray-700 p-4">
                     {transaction.systemdate 
                       ? format(new Date(transaction.systemdate), 'MM/dd/yyyy HH:mm')
                       : 'N/A'}
                   </td>
-  
-                  {/* New column for Minimum Price */}
                   <td className="border border-gray-700 p-4">
                     {minimumPrice || 'N/A'}
                   </td>
-  
-                  {/* Details concatenation */}
                   <td className="border border-gray-700 p-4">
                     {`${transaction.event || ''}, ${transaction.league || ''}, ${transaction.market || ''}`}
                   </td>
-  
                   <td className="border border-gray-700 p-4">{transaction.status}</td>
                   <td className="border border-gray-700 p-4">{transaction.messageCount || 0}</td>
                   <td className="border border-gray-700 p-4">{transaction.amountTotal || 0}</td>
-                  
-                  {showActions && (
-                    <td className="border border-gray-700 p-4">
-                      <button
-                        onClick={() => {
-                          setSelectedTransaction(transaction);
-                          setShowFillOrderModal(true);
-                        }}
-                        className="bg-blue-600 text-white p-2 rounded m-1"
-                      >
-                        Fill Order
-                      </button>
-                      <button
-                        onClick={() => handleFinishOrder(transaction)}
-                        className="bg-green-600 text-white p-2 rounded m-1"
-                      >
-                        Finish
-                      </button>
-                      <button
-                        onClick={() => {
-                          setSelectedTransaction(transaction);
-                          setShowMessagesModal(true);
-                        }}
-                        className="bg-yellow-600 text-white p-2 rounded m-1"
-                      >
-                        View Messages
-                      </button>
-                    </td>
-                  )}
+  
+                  {/* Conditional rendering for actions */}
+                  <td className="border border-gray-700 p-4">
+                    {title === 'Current Orders' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setSelectedTransaction(transaction);
+                            setShowFillOrderModal(true);
+                          }}
+                          className="bg-blue-600 text-white p-2 rounded m-1"
+                        >
+                          Fill Order
+                        </button>
+                        <button
+                          onClick={() => handleFinishOrder(transaction)}
+                          className="bg-green-600 text-white p-2 rounded m-1"
+                        >
+                          Finish
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => {
+                        setSelectedTransaction(transaction);
+                        setShowMessagesModal(true);
+                      }}
+                      className="bg-yellow-600 text-white p-2 rounded m-1"
+                    >
+                      View Messages
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -261,9 +257,67 @@ const AgentDashboard = () => {
       </div>
     );
   };
+ 
+  const renderMessage = (message) => {
+    let content = null;
+    let containerClass = 'p-2 bg-gray-700 rounded'; // Default container style
   
-   
+    switch (message.type) {
+      case 'assign':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Seek Price: ${message.seekprice || 0}, Bet Limit: ${message.betlimit || ''}`}</div>
+          </>
+        );
+        break;
+  
+      case 'agent_finish':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Agent: ${message.agentName || ''}, Message: ${message.message || ''}`}</div>
+          </>
+        );
+        containerClass += ' ml-4 bg-green-700'; // Indent and color change for agent_finish
+        break;
+  
+      case 'agent_fill':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Price: ${message.price || 0}, Amount: ${message.amount || 0}, Notes: ${message.notes || ''}, Agent: ${message.agentName || ''}`}</div>
+          </>
+        );
+        containerClass += ' ml-4 bg-blue-700'; // Indent and color change for agent_fill
+        break;
 
+      case 'close':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Message: ${message.message || ''}`}</div>
+          </>
+        );
+        break;
+  
+      default:
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Amount: ${message.amount || 0}, Notes: ${message.notes || ''}`}</div>
+          </>
+        );
+        break;
+    }
+  
+    return (
+      <li key={message.id} className={containerClass}>
+        {content}
+      </li>
+    );
+  };
+  
   const handleFinishOrder = (transaction) => {
     const messageData = {
       agentId,
@@ -271,6 +325,7 @@ const AgentDashboard = () => {
       timestamp: new Date(),
       message: 'Stopped filling order',
       type: 'agent_finish',
+      agentName,
     };
 
     addDoc(collection(db, 'messages_agents'), messageData)
@@ -291,7 +346,7 @@ const AgentDashboard = () => {
       <h1 className="text-3xl font-bold mb-6">Agent Dashboard</h1>
       {agentId && agentName && <h2 className="text-xl mb-4">Welcome, {agentName} (Agent ID: {agentId})</h2>}
       {renderTable('Current Orders', currentOrders)}
-      {renderTable('Past Orders', pastOrders, false)}
+      {renderTable('Past Orders', pastOrders, true)}
 
       {/* Fill Order Modal */}
       {showFillOrderModal && (
@@ -345,12 +400,7 @@ const AgentDashboard = () => {
           <div className="bg-gray-800 p-6 rounded shadow-lg text-white">
             <h3 className="text-lg font-bold">Messages for Transaction</h3>
             <ul className="mt-4 space-y-2">
-              {messages.map((message) => (
-                <li key={message.id} className="p-2 bg-gray-700 rounded">
-                  <div>{`Date: ${formatDate(message.timestamp)}`}</div>
-                  <div>{`Type: ${message.type}, Amount: ${message.amount || 0}, Notes: ${message.notes || ''}`}</div>
-                </li>
-              ))}
+              {messages.map((message) => renderMessage(message))}
             </ul>
             <button onClick={() => setShowMessagesModal(false)} className="bg-gray-500 text-white p-2 rounded mt-4">
               Close
@@ -358,6 +408,7 @@ const AgentDashboard = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };
