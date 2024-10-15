@@ -30,6 +30,9 @@ const Login = () => {
           case 'agent':
             navigate('/agent');
             break;
+          case 'trader':
+            navigate('/trader');
+            break;  
           default:
             navigate('/access-denied');
         }

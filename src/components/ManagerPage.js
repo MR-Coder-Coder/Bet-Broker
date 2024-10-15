@@ -394,20 +394,28 @@ const ManagerPage = () => {
 
   return (
     <div className="relative bg-gray-900 text-white p-4 min-h-screen">
-      {/* Logout Button */}
+        {/* Logout Button */}
         <button
           onClick={handleLogout}
           className="absolute top-4 right-4 bg-red-500 text-white p-2 rounded shadow-md hover:bg-red-600"
         >
           Logout
         </button>
+        {/* Reports Button */}
         <button
           onClick={() => navigate('/reports')}  // Add this button for Reports
           className="absolute top-4 right-24 bg-blue-500 text-white p-2 rounded shadow-md hover:bg-blue-600"
         >
           Reports
         </button>
-
+        {/* New-Request Button */}
+        <button
+          onClick={() => navigate('/submit-request')}  // Add this button for Reports
+          className="absolute top-4 right-44 bg-blue-500 text-white p-2 rounded shadow-md hover:bg-blue-600"
+        >
+          New-Request
+        </button>      
+        
       <h1 className="text-3xl font-bold mb-6">Manager Dashboard</h1>
       {renderTable('Open Requests', transactions.filter((t) => t.status === 'Open'), true)}
       {renderTable('In-Progress', transactions.filter((t) => t.status === 'In-Progress'), true, true, true)}
