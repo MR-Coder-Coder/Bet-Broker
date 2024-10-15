@@ -3,7 +3,9 @@ import { collection, query, where, onSnapshot, updateDoc, doc, addDoc } from 'fi
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
-import { handleTransactionResult, generateAgentJournals, generateAdditionalJournals } from './transactionLogic'; // Import the business logic
+// import { handleTransactionResult, generateAgentJournals, generateAdditionalJournals } from './transactionLogic'; // Import the business logic
+import calculateAndStorePositions from './calculatePositions'; // Import the utility function
+import ResultsModal from './ResultsModal'; // Import the ResultsModal component
 
 const ManagerPage = () => {
   const navigate = useNavigate();
@@ -24,6 +26,7 @@ const ManagerPage = () => {
   const [agentMessage, setAgentMessage] = useState('');
   const [showMessagesModal, setShowMessagesModal] = useState(false); // To toggle the modal
   const [transactionMessages, setTransactionMessages] = useState([]); // To store fetched messages
+  const [selectedTransactionId, setSelectedTransactionId] = useState(null); // To store the transaction ID for the results modal
 
 
   // Fetching Transactions, Messages, and Agents Data
@@ -233,11 +236,20 @@ const ManagerPage = () => {
     }
   };
 
+  // Function to handle showing the results modal
+  const handleShowResults = (transaction) => {
+    setSelectedTransactionId(transaction.id); // Set the ID of the transaction to display results
+  };
+
+  // Function to handle closing the results modal
+  const handleCloseResults = () => {
+    setSelectedTransactionId(null); // Clear the transaction ID to close the modal
+  };  
+
   const formatDate = (timestamp) => {
     return new Date(timestamp.seconds * 1000).toLocaleString();
   };
   
-
   const renderMessage = (message) => {
     let content = null;
     let containerClass = 'p-2 bg-gray-700 rounded'; // Default container style
@@ -337,21 +349,29 @@ const ManagerPage = () => {
                     onChange={async (e) => {
                       const selectedResult = e.target.value;
                       if (selectedResult) {
-                        await handleTransactionResult(transaction.id, selectedResult);  // Call the separate function
-                        const lastJrnlNo = await generateAgentJournals(transaction.id, selectedResult);  // Call the separate function
-                        await generateAdditionalJournals(transaction.id, selectedResult, lastJrnlNo);
+                        // 1. Update the transaction with the selected result in Firestore
+                        const transactionRef = doc(db, 'transactions', transaction.id);
+                        await updateDoc(transactionRef, {
+                          result: selectedResult,
+                          status: 'Closed-Settled' // Optional: Update the status if needed
+                        });
+
+                        // 2. Call calculateAndStorePositions with the transaction ID and selected result
+                        await calculateAndStorePositions(transaction.id, selectedResult);
+
+                        console.log(`Positions calculated and stored for transaction ${transaction.id}`);
                       }
                     }}
                     className="p-2 rounded w-full bg-gray-700 text-white border border-gray-500"
                   >
                     <option value="" className="bg-gray-800 text-white">Select Result</option>
                     <option value="win" className="bg-gray-800 text-white">Win</option>
-                    <option value="lose" className="bg-gray-800 text-white">Lose</option>
+                    <option value="loss" className="bg-gray-800 text-white">Loss</option>
                     <option value="void" className="bg-gray-800 text-white">Void</option>
                   </select>
                 </td>
-              )}
-              {showResult && <td className="border border-gray-700 p-4">{transaction.result}</td>}
+              )}              
+            {showResult && <td className="border border-gray-700 p-4">{transaction.result}</td>}
               <td className="border border-gray-700 p-4">
                 {showAssign && (
                   <button
@@ -384,6 +404,15 @@ const ManagerPage = () => {
                 >
                   View Messages
                 </button>
+                {/* New Results button for Closed-Settled transactions */}
+                {transaction.status === 'Closed-Settled' && (
+                  <button
+                    onClick={() => handleShowResults(transaction)}
+                    className="bg-purple-600 text-white p-2 rounded m-1"
+                  >
+                    Results
+                  </button>
+                )}
               </td>
             </tr>
           ))}
@@ -415,7 +444,7 @@ const ManagerPage = () => {
         >
           New-Request
         </button>      
-        
+
       <h1 className="text-3xl font-bold mb-6">Manager Dashboard</h1>
       {renderTable('Open Requests', transactions.filter((t) => t.status === 'Open'), true)}
       {renderTable('In-Progress', transactions.filter((t) => t.status === 'In-Progress'), true, true, true)}
@@ -574,6 +603,11 @@ const ManagerPage = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Results Modal */}
+      {selectedTransactionId && (
+        <ResultsModal transactionId={selectedTransactionId} onClose={handleCloseResults} />
       )}
 
 
