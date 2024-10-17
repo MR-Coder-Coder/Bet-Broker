@@ -6,6 +6,8 @@ import { db, auth } from '../firebase';
 // import { handleTransactionResult, generateAgentJournals, generateAdditionalJournals } from './transactionLogic'; // Import the business logic
 import calculateAndStorePositions from './calculatePositions'; // Import the utility function
 import ResultsModal from './ResultsModal'; // Import the ResultsModal component
+import BetSlipModal from './BetSlipModal'; // Adjust the path based on your folder structure
+
 
 const ManagerPage = () => {
   const navigate = useNavigate();
@@ -27,7 +29,10 @@ const ManagerPage = () => {
   const [showMessagesModal, setShowMessagesModal] = useState(false); // To toggle the modal
   const [transactionMessages, setTransactionMessages] = useState([]); // To store fetched messages
   const [selectedTransactionId, setSelectedTransactionId] = useState(null); // To store the transaction ID for the results modal
+  // Inside ManagerPage component
 
+  const [showBetSlipModal, setShowBetSlipModal] = useState(false);
+  const [selectedBetSlipTransaction, setSelectedBetSlipTransaction] = useState(null);
 
   // Fetching Transactions, Messages, and Agents Data
   useEffect(() => {
@@ -101,6 +106,16 @@ const ManagerPage = () => {
       unsubscribeAgents();
     };
   }, []);
+
+  const handleShowBetSlip = (transaction) => {
+    setSelectedBetSlipTransaction(transaction);
+    setShowBetSlipModal(true);
+  };
+  
+  const handleCloseBetSlipModal = () => {
+    setShowBetSlipModal(false);
+    setSelectedBetSlipTransaction(null);
+  };
 
   const handleViewMessages = (transaction) => {
     const messagesQuery = query(
@@ -182,6 +197,7 @@ const ManagerPage = () => {
       await updateDoc(transactionRef, {
         status: 'In-Progress',
         AssignedAgents: selectedAgents,
+        seekprice: seekPrice, // Update the seekprice in the transaction
       });
 
       for (const agentId of selectedAgents) {
@@ -366,7 +382,9 @@ const ManagerPage = () => {
                   >
                     <option value="" className="bg-gray-800 text-white">Select Result</option>
                     <option value="win" className="bg-gray-800 text-white">Win</option>
+                    <option value="win-half" className="bg-gray-800 text-white">Win - Half</option>
                     <option value="loss" className="bg-gray-800 text-white">Loss</option>
+                    <option value="loss-half" className="bg-gray-800 text-white">Loss - Half</option>
                     <option value="void" className="bg-gray-800 text-white">Void</option>
                   </select>
                 </td>
@@ -411,6 +429,15 @@ const ManagerPage = () => {
                     className="bg-purple-600 text-white p-2 rounded m-1"
                   >
                     Results
+                  </button>                  
+                )}
+                {/* New Client BetSlip button for Closed-UnSettled and Closed-Settled */}
+                {(transaction.status === 'Closed-UnSettled' || transaction.status === 'Closed-Settled') && (
+                  <button
+                    onClick={() => handleShowBetSlip(transaction)}
+                    className="bg-indigo-600 text-white p-2 rounded m-1"
+                  >
+                    Client BetSlip
                   </button>
                 )}
               </td>
@@ -457,7 +484,7 @@ const ManagerPage = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="bg-gray-800 p-6 rounded shadow-lg text-white">
             <h3 className="text-lg font-bold">Decline Request</h3>
-            <p>Message: "Sorry, Cannot fulfill that request"</p>
+            <p className="text-gray-300"><strong className="text-gray-300">Message: </strong>"Sorry, Cannot fulfill that request"</p>
             <div className="mt-4">
               <button onClick={handleDeclineSubmit} className="bg-red-500 text-white p-2 rounded mr-2">
                 Submit
@@ -609,6 +636,15 @@ const ManagerPage = () => {
       {selectedTransactionId && (
         <ResultsModal transactionId={selectedTransactionId} onClose={handleCloseResults} />
       )}
+
+      {/* Client BetSlip Modal */}
+      {showBetSlipModal && selectedBetSlipTransaction && (
+        <BetSlipModal
+          transaction={selectedBetSlipTransaction}
+          onClose={handleCloseBetSlipModal}
+        />
+      )}
+
 
 
     </div>

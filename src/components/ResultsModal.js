@@ -43,9 +43,9 @@ const ResultsModal = ({ transactionId, onClose }) => {
   if (loading) return <div>Loading...</div>;
 
   // Prepare data for the chart
-  const clientPosition = positions.find(pos => pos.nomcode === 'Client') || { CR: 0, DR: 0 };
-  const companyPosition = positions.find(pos => pos.nomcode === 'Company') || { CR: 0, DR: 0 };
-  const agentPositions = positions.filter(pos => pos.nomcode.startsWith('Agent'));
+  const clientPosition = positions.find(pos => pos.entity === 'Client') || { CR: 0, DR: 0 };
+  const companyPosition = positions.find(pos => pos.entity === 'Internal') || { CR: 0, DR: 0 };
+  const agentPositions = positions.filter(pos => pos.entity=== 'Suppiler');
 
   const agentTotalPosition = agentPositions.reduce(
     (total, agent) => total + (agent.CR - agent.DR),

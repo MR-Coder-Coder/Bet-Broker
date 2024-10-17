@@ -47,8 +47,12 @@ const calculateAndStorePositions = async (transactionId, result) => {
     // Perform calculations and store results based on the transaction result
     if (result.toLowerCase() === 'win') {
       await storeWinPositions(positionsCollectionRef, transactionData, clientData, agentsData);
+    } else if (result.toLowerCase() === 'win-half') {
+      await storeWinHalfPositions(positionsCollectionRef, transactionData, clientData, agentsData);
     } else if (result.toLowerCase() === 'loss') {
       await storeLossPositions(positionsCollectionRef, transactionData, clientData, agentsData);
+    } else if (result.toLowerCase() === 'loss-half') {
+      await storeLossHalfPositions(positionsCollectionRef, transactionData, clientData, agentsData);
     } else if (result.toLowerCase() === 'void') {
       await storeVoidPositions(positionsCollectionRef);
     } else {
@@ -69,7 +73,7 @@ const storeWinPositions = async (positionsCollectionRef, transactionData, client
 
   // Store each agent's liability
   for (const agent of agentsData) {
-    const agentPayout = agent.amount * agent.price;
+    const agentPayout = (agent.amount * agent.price) - agent.amount;
     agentTotalPayout += agentPayout;
 
     await addDoc(positionsCollectionRef, {
@@ -77,6 +81,7 @@ const storeWinPositions = async (positionsCollectionRef, transactionData, client
       DR: agentPayout,
       CR: 0,
       timestamp: new Date().toISOString(),
+      entity: 'Suppiler',
     });
   }
 
@@ -84,18 +89,61 @@ const storeWinPositions = async (positionsCollectionRef, transactionData, client
   await addDoc(positionsCollectionRef, {
     nomcode: 'Client',
     DR: 0,
-    CR: clientPayout,
+    CR: clientPayout - clientAmount,
     timestamp: new Date().toISOString(),
+    entity: 'Client',
   });
 
   // Store company's position
   const companyNetPosition = agentTotalPayout - clientPayout;
   await addDoc(positionsCollectionRef, {
     nomcode: 'Company',
-    DR: clientPayout, // What the company owes to the client
+    DR: clientPayout - clientAmount, // What the company owes to the client
     CR: agentTotalPayout, // What the company gains from agents
     netPosition: companyNetPosition, // Store the company's net position
     timestamp: new Date().toISOString(),
+    entity: 'Internal',
+  });
+};
+
+const storeWinHalfPositions = async (positionsCollectionRef, transactionData, clientData, agentsData) => {
+  const clientAmount = clientData.client_amount;
+  const clientPrice = clientData.client_price;
+  const clientPayout = clientAmount * clientPrice;
+  let agentTotalPayout = 0;
+
+  // Store each agent's liability
+  for (const agent of agentsData) {
+    const agentPayout = ((agent.amount * agent.price) - agent.amount) * 0.5;
+    agentTotalPayout += agentPayout;
+
+    await addDoc(positionsCollectionRef, {
+      nomcode: agent.agentName,
+      DR: agentPayout,
+      CR: 0,
+      timestamp: new Date().toISOString(),
+      entity: 'Suppiler',
+    });
+  }
+
+  // Store client's position
+  await addDoc(positionsCollectionRef, {
+    nomcode: 'Client',
+    DR: 0,
+    CR: (clientPayout - clientAmount) * 0.5,
+    timestamp: new Date().toISOString(),
+    entity: 'Client',
+  });
+
+  // Store company's position
+  const companyNetPosition = agentTotalPayout - clientPayout;
+  await addDoc(positionsCollectionRef, {
+    nomcode: 'Company',
+    DR: (clientPayout - clientAmount) * 0.5, // What the company owes to the client
+    CR: agentTotalPayout, // What the company gains from agents
+    netPosition: companyNetPosition, // Store the company's net position
+    timestamp: new Date().toISOString(),
+    entity: 'Internal',
   });
 };
 
@@ -112,6 +160,7 @@ const storeLossPositions = async (positionsCollectionRef, transactionData, clien
       DR: 0,
       CR: agent.amount,
       timestamp: new Date().toISOString(),
+      entity: 'Suppiler',
     });
   }
 
@@ -121,16 +170,57 @@ const storeLossPositions = async (positionsCollectionRef, transactionData, clien
     DR: clientAmount,
     CR: 0,
     timestamp: new Date().toISOString(),
+    entity: 'Client',
+    
   });
 
   // Store company's position
   await addDoc(positionsCollectionRef, {
     nomcode: 'Company',
-    DR: clientAmount,
-    CR: agentTotal,
+    CR: clientAmount,
+    DR: agentTotal,
     timestamp: new Date().toISOString(),
+    entity: 'Internal',
   });
 };
+
+const storeLossHalfPositions = async (positionsCollectionRef, transactionData, clientData, agentsData) => {
+  const clientAmount = clientData.client_amount;
+  let agentTotal = 0;
+
+  // Store each agent's stakes
+  for (const agent of agentsData) {
+    agentTotal += agent.amount;
+
+    await addDoc(positionsCollectionRef, {
+      nomcode: agent.agentName,
+      DR: 0,
+      CR: agent.amount * 0.5,
+      timestamp: new Date().toISOString(),
+      entity: 'Suppiler',
+    });
+  }
+
+  // Store client's position (loss)
+  await addDoc(positionsCollectionRef, {
+    nomcode: 'Client',
+    DR: clientAmount * 0.5,
+    CR: 0,
+    timestamp: new Date().toISOString(),
+    entity: 'Client',
+    
+  });
+
+  // Store company's position
+  await addDoc(positionsCollectionRef, {
+    nomcode: 'Company',
+    CR: clientAmount * 0.5,
+    DR: agentTotal * 0.5,
+    timestamp: new Date().toISOString(),
+    entity: 'Internal',
+  });
+};
+
 
 const storeVoidPositions = async (positionsCollectionRef, agentsData) => {
   // Store void position for each agent involved
@@ -140,6 +230,7 @@ const storeVoidPositions = async (positionsCollectionRef, agentsData) => {
       DR: 0,
       CR: 0,
       timestamp: new Date().toISOString(),
+      entity: 'Suppiler',
     });
   }
 
@@ -149,6 +240,7 @@ const storeVoidPositions = async (positionsCollectionRef, agentsData) => {
     DR: 0,
     CR: 0,
     timestamp: new Date().toISOString(),
+    entity: 'Client',
   });
 
   // Store void position for the company
@@ -157,6 +249,7 @@ const storeVoidPositions = async (positionsCollectionRef, agentsData) => {
     DR: 0,
     CR: 0,
     timestamp: new Date().toISOString(),
+    entity: 'Internal',
   });
 };
 
