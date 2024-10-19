@@ -81,13 +81,13 @@ const storeWinPositions = async (positionsCollectionRef, transactionData, client
       DR: agentPayout,
       CR: 0,
       timestamp: new Date().toISOString(),
-      entity: 'Suppiler',
+      entity: 'Supplier',
     });
   }
 
   // Store client's position
   await addDoc(positionsCollectionRef, {
-    nomcode: 'Client',
+    nomcode: transactionData.requestby,
     DR: 0,
     CR: clientPayout - clientAmount,
     timestamp: new Date().toISOString(),
@@ -122,13 +122,13 @@ const storeWinHalfPositions = async (positionsCollectionRef, transactionData, cl
       DR: agentPayout,
       CR: 0,
       timestamp: new Date().toISOString(),
-      entity: 'Suppiler',
+      entity: 'Supplier',
     });
   }
 
   // Store client's position
   await addDoc(positionsCollectionRef, {
-    nomcode: 'Client',
+    nomcode: transactionData.requestby,
     DR: 0,
     CR: (clientPayout - clientAmount) * 0.5,
     timestamp: new Date().toISOString(),
@@ -160,13 +160,13 @@ const storeLossPositions = async (positionsCollectionRef, transactionData, clien
       DR: 0,
       CR: agent.amount,
       timestamp: new Date().toISOString(),
-      entity: 'Suppiler',
+      entity: 'Supplier',
     });
   }
 
   // Store client's position (loss)
   await addDoc(positionsCollectionRef, {
-    nomcode: 'Client',
+    nomcode: transactionData.requestby,
     DR: clientAmount,
     CR: 0,
     timestamp: new Date().toISOString(),
@@ -197,13 +197,13 @@ const storeLossHalfPositions = async (positionsCollectionRef, transactionData, c
       DR: 0,
       CR: agent.amount * 0.5,
       timestamp: new Date().toISOString(),
-      entity: 'Suppiler',
+      entity: 'Supplier',
     });
   }
 
   // Store client's position (loss)
   await addDoc(positionsCollectionRef, {
-    nomcode: 'Client',
+    nomcode: transactionData.requestby,
     DR: clientAmount * 0.5,
     CR: 0,
     timestamp: new Date().toISOString(),
@@ -222,7 +222,7 @@ const storeLossHalfPositions = async (positionsCollectionRef, transactionData, c
 };
 
 
-const storeVoidPositions = async (positionsCollectionRef, agentsData) => {
+const storeVoidPositions = async (positionsCollectionRef, transactionData, agentsData) => {
   // Store void position for each agent involved
   for (const agent of agentsData) {
     await addDoc(positionsCollectionRef, {
@@ -230,13 +230,13 @@ const storeVoidPositions = async (positionsCollectionRef, agentsData) => {
       DR: 0,
       CR: 0,
       timestamp: new Date().toISOString(),
-      entity: 'Suppiler',
+      entity: 'Supplier',
     });
   }
 
   // Store void position for the client
   await addDoc(positionsCollectionRef, {
-    nomcode: 'Client',
+    nomcode: transactionData.requestby,
     DR: 0,
     CR: 0,
     timestamp: new Date().toISOString(),

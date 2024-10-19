@@ -45,7 +45,7 @@ const ResultsModal = ({ transactionId, onClose }) => {
   // Prepare data for the chart
   const clientPosition = positions.find(pos => pos.entity === 'Client') || { CR: 0, DR: 0 };
   const companyPosition = positions.find(pos => pos.entity === 'Internal') || { CR: 0, DR: 0 };
-  const agentPositions = positions.filter(pos => pos.entity=== 'Suppiler');
+  const agentPositions = positions.filter(pos => pos.entity=== 'Supplier');
 
   const agentTotalPosition = agentPositions.reduce(
     (total, agent) => total + (agent.CR - agent.DR),

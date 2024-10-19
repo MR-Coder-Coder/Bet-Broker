@@ -333,9 +333,14 @@ const AgentDashboardTrader = () => {
       .catch((error) => console.error('Error finishing order:', error));
   };
 
+  // Instead of: new Date(timestamp.seconds * 1000)
+  // Use Firestore's toDate() method if it's a Firestore Timestamp object
   const formatDate = (timestamp) => {
-    return format(new Date(timestamp.seconds * 1000), 'MM/dd/yyyy HH:mm');
+    return timestamp && timestamp.toDate 
+      ? format(timestamp.toDate(), 'MM/dd/yyyy HH:mm') 
+      : 'N/A';
   };
+
 
   return (
     <div className="relative bg-gray-900 text-white p-4 min-h-screen">
