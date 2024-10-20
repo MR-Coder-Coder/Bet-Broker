@@ -26,11 +26,28 @@ const SubmitRequest = () => {
 
   const [errors, setErrors] = useState({});
 
-  // Function to get the current formatted date and time
-  const getCurrentDateTime = () => {
+// Function to get the current formatted date and time in DD/MM/YYYY, HH:MM:SS AM/PM format (UK)
+const getCurrentDateTime = () => {
     const currentDate = new Date();
-    return currentDate.toLocaleString(); // Format the date and time in a readable format
+  
+    // Define options for formatting the date
+    const options = {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    };
+  
+    // Format the date and time in UK English format
+    const formattedDateTime = new Intl.DateTimeFormat('en-US', options).format(currentDate);
+  
+    return formattedDateTime;
   };
+  
+  
 
   const validate = () => {
     const newErrors = {};
