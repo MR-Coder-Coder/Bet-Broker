@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { collection, addDoc, doc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from '../firebase'; // Import Firebase
+import React, { useState, useEffect } from 'react';
+import { collection, addDoc, doc, updateDoc, Timestamp, getDocs } from 'firebase/firestore';
+import { db, auth } from '../firebase'; // Import Firebase
 import { useNavigate } from 'react-router-dom'; // Import the useNavigate hook
 
 const SubmitRequest = () => {
@@ -24,6 +24,7 @@ const SubmitRequest = () => {
     systemdate: "" // Will be updated on submit
   });
 
+  const [agentId, setAgentId] = useState(null);
   const [errors, setErrors] = useState({});
 
 // Function to get the current formatted date and time in DD/MM/YYYY, HH:MM:SS AM/PM format (UK)
@@ -47,8 +48,6 @@ const getCurrentDateTime = () => {
   return formattedDateTime;
 };
 
-
-
   const validate = () => {
     const newErrors = {};
 
@@ -59,13 +58,36 @@ const getCurrentDateTime = () => {
       }
     if ((formData.seekprice && isNaN(formData.seekprice)) || (!formData.seekprice)) {
         newErrors.seekprice = "Seek price must be a number";
-      }
-      
-
+      }      
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0; 
   };
 
+  // Fetch the agent's ID dynamically using Firebase Auth and the agents collection
+  useEffect(() => {
+    const fetchAgentId = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      const userUid = user.uid;
+      try {
+        const agentsSnapshot = await getDocs(collection(db, 'agents'));
+        agentsSnapshot.forEach((doc) => {
+          const agentData = doc.data();
+          if (agentData.agent_users?.includes(userUid)) {
+            setAgentId(doc.id); // Set the found agent ID
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching agent ID:', error);
+      }
+    };
+
+  fetchAgentId();
+}, []);  
+
+
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
   
@@ -88,7 +110,7 @@ const getCurrentDateTime = () => {
   
       // Step 2: Add a document to the "messages_agents" collection using the generated transactionId
       const agentMessageData = {
-        agentId: "IxIC8VncYGcbvgd1S0GM", // This is hardcoded, you can update it as per your requirements
+        agentId: agentId, // Use dynamically fetched agent ID
         betlimit: formData.betlimit, // Taking from form
         message: "Trader Starting", // Hardcoded message
         seekprice: formData.seekprice, // Taking from form
@@ -99,13 +121,13 @@ const getCurrentDateTime = () => {
   
       await addDoc(collection(db, "messages_agents"), agentMessageData);
   
-      console.log("Agent message successfully written to messages_agents");
+      console.log("Trader message successfully written to messages_agents");
   
       // Step 3: Update the transaction status and assigned agents
       const transactionRef = doc(db, 'transactions', transactionId);
       await updateDoc(transactionRef, {
         status: 'In-Progress',
-        AssignedAgents: ["IxIC8VncYGcbvgd1S0GM", "8sZugK1xmpHkpNAcTTEQ" ] // Example agents, you can dynamically populate this list
+        AssignedAgents: [agentId] // Use dynamically fetched agent ID
       });
   
       console.log("Transaction status updated to In-Progress");
