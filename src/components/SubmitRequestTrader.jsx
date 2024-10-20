@@ -105,7 +105,7 @@ const getCurrentDateTime = () => {
       const transactionRef = doc(db, 'transactions', transactionId);
       await updateDoc(transactionRef, {
         status: 'In-Progress',
-        AssignedAgents: ["IxIC8VncYGcbvgd1S0GM"] // Example agents, you can dynamically populate this list
+        AssignedAgents: ["IxIC8VncYGcbvgd1S0GM", "8sZugK1xmpHkpNAcTTEQ" ] // Example agents, you can dynamically populate this list
       });
   
       console.log("Transaction status updated to In-Progress");
