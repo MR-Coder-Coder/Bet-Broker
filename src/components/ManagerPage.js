@@ -134,7 +134,6 @@ const ManagerPage = () => {
     });
   };
   
-
   // Handle Logout
   const handleLogout = async () => {
     try {
@@ -300,6 +299,26 @@ const ManagerPage = () => {
         containerClass += ' ml-4 bg-blue-700'; // Indent and color change for agent_fill
         break;
 
+      case 'agent_note_with_image':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Notes: ${message.notes || ''}`}</div>
+            {message.imageUrl && (
+              <a
+                href={message.imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center mt-2 text-blue-500 hover:text-blue-700"
+              >
+                🖼️ View Image
+              </a>
+            )}
+          </>
+        );
+        containerClass += ' bg-purple-700';
+        break;
+          
       case 'close':
         content = (
           <>
