@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { getDocs, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { db, auth } from '../firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from '../firebase';
+import ImageUploadModal from './ImageUploadModal'; // Assuming you named the new component
 import { format } from 'date-fns'; // Add this to format the timestamp
 
 const AgentDashboard = () => {
@@ -15,10 +17,12 @@ const AgentDashboard = () => {
   const [agentName, setAgentName] = useState(null);
   const [currentOrders, setCurrentOrders] = useState([]);
   const [pastOrders, setPastOrders] = useState([]);
-  const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showFillOrderModal, setShowFillOrderModal] = useState(false);
   const [showMessagesModal, setShowMessagesModal] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [showImageUpload, setShowImageUpload] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState(null); // Ensure you already have this state for transaction selection
+
 
   // Fetch agent and transactions on component mount
   useEffect(() => {
@@ -167,6 +171,30 @@ const AgentDashboard = () => {
       .catch((error) => console.error('Error filling order:', error));
   };
 
+  const handleImageUploadSubmit = async (image, notes) => {
+    if (!image || !selectedTransaction) return;
+    try {
+      // Upload the image to Firebase Storage
+      const imageRef = ref(storage, `messages_images/${selectedTransaction.id}_${Date.now()}.jpg`);
+      await uploadString(imageRef, image, 'data_url');
+      const imageUrl = await getDownloadURL(imageRef);
+  
+      // Store the message with image URL in Firestore
+      await addDoc(collection(db, 'messages_agents'), {
+        agentId,
+        transactionId: selectedTransaction.id,
+        timestamp: new Date(),
+        type: 'agent_note_with_image',
+        agentName,
+        notes,
+        imageUrl,
+      });
+      setShowImageUpload(false); // Close modal after submission
+    } catch (error) {
+      console.error('Error uploading image:', error);
+    }
+  };  
+
   const resetForm = () => {
     setPrice('');
     setAmount('');
@@ -239,6 +267,17 @@ const AgentDashboard = () => {
                         </button>
                       </>
                     )}
+                    {title === 'Past Orders' && (
+                      <button
+                        onClick={() => {
+                          setSelectedTransaction(transaction);
+                          setShowImageUpload(true);
+                        }}
+                        className="bg-purple-600 text-white p-2 rounded"
+                      >
+                        Attach Image & Note
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setSelectedTransaction(transaction);
@@ -292,6 +331,26 @@ const AgentDashboard = () => {
         containerClass += ' ml-4 bg-blue-700'; // Indent and color change for agent_fill
         break;
 
+      case 'agent_note_with_image':
+        content = (
+          <>
+            <div>{`Date: ${formatDate(message.timestamp)}`}</div>
+            <div>{`Type: ${message.type}, Notes: ${message.notes || ''}`}</div>
+            {message.imageUrl && (
+              <a
+                href={message.imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center mt-2 text-blue-500 hover:text-blue-700"
+              >
+                🖼️ View Image
+              </a>
+            )}
+          </>
+        );
+        containerClass += ' bg-purple-700';
+        break;
+                
       case 'close':
         content = (
           <>
@@ -347,6 +406,13 @@ const AgentDashboard = () => {
       {agentId && agentName && <h2 className="text-xl mb-4">Welcome, {agentName} (Agent ID: {agentId})</h2>}
       {renderTable('Current Orders', currentOrders)}
       {renderTable('Past Orders', pastOrders, true)}
+
+      {/* Render image upload modal */}
+      <ImageUploadModal
+        isOpen={showImageUpload}
+        onClose={() => setShowImageUpload(false)}
+        onSubmit={handleImageUploadSubmit}
+      />
 
       {/* Fill Order Modal */}
       {showFillOrderModal && (
