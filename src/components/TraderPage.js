@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getDocs, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
+import { getDocs, collection, query, where, onSnapshot, updateDoc, doc, addDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -7,7 +7,6 @@ import { db, auth, storage } from '../firebase';
 import ImageUploadModal from './ImageUploadModal'; // Assuming you named the new component
 import { format } from 'date-fns'; // Add this to format the timestamp
 import BetSlipModal from './BetSlipModal';
-
 
 const AgentDashboardTrader = () => {
   const navigate = useNavigate();
@@ -27,7 +26,10 @@ const AgentDashboardTrader = () => {
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [showBetSlipModal, setShowBetSlipModal] = useState(false);
   const [selectedBetSlipTransaction, setSelectedBetSlipTransaction] = useState(null);
-
+  const [showFinishModal, setShowFinishModal] = useState(false);
+  const [clientAmount, setClientAmount] = useState('');
+  const [clientPrice, setClientPrice] = useState('');
+  
   // Fetch agent and transactions on component mount
   useEffect(() => {
     const fetchAgentAndTransactions = async () => {
@@ -188,6 +190,70 @@ const AgentDashboardTrader = () => {
 
     return () => clearInterval(interval);
   }, [timers]);
+
+  // Function to handle Trader Finish Button
+  const handleFinishOrder = (transaction) => {
+    setSelectedTransaction(transaction); // Set the selected transaction
+    setShowFinishModal(true); // Open the finish modal
+  };
+
+  // Function to handle Trader Finish Submit Button
+  const handleFinishSubmit = async () => {
+    if (!selectedTransaction) return;
+  
+    const messageData = {
+      agentId,
+      transactionId: selectedTransaction.id,
+      timestamp: new Date(),
+      message: 'Stopped filling order',
+      type: 'agent_finish',
+      agentName,
+    };
+  
+    try {
+      // Log "agent_finish" message
+      await addDoc(collection(db, 'messages_agents'), messageData);
+  
+      // Update transaction status to "Closed-UnSettled"
+      const transactionRef = doc(db, 'transactions', selectedTransaction.id);
+      await updateDoc(transactionRef, {
+        status: 'Closed-UnSettled',
+      });
+  
+      // Log a "close" message for each assigned agent
+      if (selectedTransaction.AssignedAgents) {
+        for (const agentId of selectedTransaction.AssignedAgents) {
+          await addDoc(collection(db, 'messages_agents'), {
+            transactionId: selectedTransaction.id,
+            timestamp: new Date(),
+            agentId: agentId,
+            message: 'Trader has closed the transaction',
+            type: 'close',
+          });
+        }
+      }
+  
+      // Log a "client_fill" message with the provided client amount and price
+      await addDoc(collection(db, 'messages_client'), {
+        transactionId: selectedTransaction.id,
+        timestamp: new Date(),
+        type: 'client_fill',
+        client_amount: parseFloat(clientAmount) || 0,
+        client_price: parseFloat(clientPrice) || 0,
+      });
+  
+      console.log('Transaction closed and client fill logged successfully');
+  
+      // Reset the modal and inputs
+      setShowFinishModal(false);
+      setSelectedTransaction(null);
+      setClientAmount('');
+      setClientPrice('');
+    } catch (error) {
+      console.error('Error finishing and closing order:', error);
+    }
+  };
+  
 
   // Function to show Client Bet Slip
   const handleShowBetSlip = (transaction) => {
@@ -458,21 +524,6 @@ const AgentDashboardTrader = () => {
       </li>
     );
   };
-  
-  const handleFinishOrder = (transaction) => {
-    const messageData = {
-      agentId,
-      transactionId: transaction.id,
-      timestamp: new Date(),
-      message: 'Stopped filling order',
-      type: 'agent_finish',
-      agentName,
-    };
-
-    addDoc(collection(db, 'messages_agents'), messageData)
-      .then(() => console.log('Order finished successfully'))
-      .catch((error) => console.error('Error finishing order:', error));
-  };
 
   // Instead of: new Date(timestamp.seconds * 1000)
   // Use Firestore's toDate() method if it's a Firestore Timestamp object
@@ -581,9 +632,43 @@ const AgentDashboardTrader = () => {
           onClose={handleCloseBetSlipModal}
         />
       )}
-          
 
-
+      {showFinishModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-gray-800 p-6 rounded shadow-lg text-white">
+            <h3 className="text-lg font-bold">Close Transaction</h3>
+            <div className="mt-4">
+              <label className="block mb-2">
+                Client Amount:
+                <input
+                  type="text"
+                  value={clientAmount}
+                  onChange={(e) => setClientAmount(e.target.value)}
+                  className="p-2 border border-gray-500 rounded w-full bg-gray-700 text-white"
+                />
+              </label>
+              <label className="block mb-2">
+                Client Price:
+                <input
+                  type="text"
+                  value={clientPrice}
+                  onChange={(e) => setClientPrice(e.target.value)}
+                  className="p-2 border border-gray-500 rounded w-full bg-gray-700 text-white"
+                />
+              </label>
+            </div>
+            <div className="mt-4">
+              <button onClick={handleFinishSubmit} className="bg-green-600 text-white p-2 rounded mr-2">
+                Submit
+              </button>
+              <button onClick={() => setShowFinishModal(false)} className="bg-gray-500 text-white p-2 rounded">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+         
     </div>
   );
 };
