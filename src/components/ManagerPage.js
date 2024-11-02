@@ -18,6 +18,7 @@ const ManagerPage = () => {
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showTimerModal, setShowTimerModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [agents, setAgents] = useState([]);
   const [selectedAgents, setSelectedAgents] = useState([]);
@@ -25,10 +26,12 @@ const ManagerPage = () => {
   const [seekPrice, setSeekPrice] = useState('');
   const [clientAmount, setClientAmount] = useState('');
   const [clientPrice, setClientPrice] = useState('');
+  const [timer, setTimer] = useState('');
   const [agentMessage, setAgentMessage] = useState('');
   const [showMessagesModal, setShowMessagesModal] = useState(false); // To toggle the modal
   const [transactionMessages, setTransactionMessages] = useState([]); // To store fetched messages
   const [selectedTransactionId, setSelectedTransactionId] = useState(null); // To store the transaction ID for the results modal
+  const [timers, setTimers] = useState({}); // New state to store timers
   // Inside ManagerPage component
 
   const [showBetSlipModal, setShowBetSlipModal] = useState(false);
@@ -56,10 +59,23 @@ const ManagerPage = () => {
     const messagesQuery = collection(db, 'messages_agents');
     const unsubscribeMessages = onSnapshot(messagesQuery, (querySnapshot) => {
       const newMessages = {};
+      const newTimers = {}; // Temporary storage for timers
 
       querySnapshot.forEach((doc) => {
         const message = doc.data();
         const transactionId = message.transactionId;
+
+        // Only consider messages of type 'timer'
+        if (message.type === 'timer' && message.timer) {
+          if (!newTimers[transactionId]) {
+            newTimers[transactionId] = [];
+          }
+          // Store each timer message with its timestamp for sorting
+          newTimers[transactionId].push({
+            timestamp: message.timestamp.toMillis(),
+            timer: parseInt(message.timer, 10),
+          });
+        }
 
         // Initialize if transaction ID not yet tracked
         if (!newMessages[transactionId]) {
@@ -86,7 +102,26 @@ const ManagerPage = () => {
         data.blendedPrice = data.amountTotal > 0 ? data.blendedPriceNumerator / data.amountTotal : 0;
       });
 
+      // Calculate the endTime based on the latest timer message
+      Object.keys(newTimers).forEach((transactionId) => {
+        const timers = newTimers[transactionId];
+        if (timers.length > 0) {
+          // Sort by timestamp and get the latest timer message
+          timers.sort((a, b) => b.timestamp - a.timestamp);
+          const { timestamp, timer } = timers[0];
+          const endTime = timestamp + timer * 1000;
+
+          // Set timer data for this transaction
+          newMessages[transactionId] = {
+            ...newMessages[transactionId],
+            initialTime: timer,
+            endTime: endTime,
+          };
+        }
+      });
+
       setMessages(newMessages);
+      setTimers(newTimers); // Set timers for countdown
     });
 
     // Set up a real-time listener for agents collection
@@ -106,6 +141,35 @@ const ManagerPage = () => {
       unsubscribeAgents();
     };
   }, []);
+
+  // In the useEffect interval for countdown logic:
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimers((prevTimers) => {
+        const updatedTimers = { ...prevTimers };
+        Object.keys(updatedTimers).forEach((transactionId) => {
+          const currentTime = Date.now();
+          const endTime = messages[transactionId]?.endTime;
+
+          if (endTime) {
+            const remainingTime = Math.max(Math.floor((endTime - currentTime) / 1000), 0);
+
+            if (remainingTime === 0) {
+              updatedTimers[transactionId].display = 'Finished';
+            } else {
+              updatedTimers[transactionId].display = `${remainingTime}s`;
+            }
+          } else {
+            updatedTimers[transactionId].display = 'Not Set';
+          }
+        });
+        return updatedTimers;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [messages]);
+  
 
   const handleShowBetSlip = (transaction) => {
     setSelectedBetSlipTransaction(transaction);
@@ -167,6 +231,13 @@ const ManagerPage = () => {
     setClientAmount(messages[transaction.id]?.amountTotal || '');
     setClientPrice(transaction.requestprice || '');
     setShowCloseModal(true);
+  };
+
+  // Handle Timer Transaction
+  const handleTimer = (transaction) => {
+    setSelectedTransaction(transaction);
+    setTimer('30');
+    setShowTimerModal(true);
   };
 
   // Handle Decline Submit
@@ -247,6 +318,30 @@ const ManagerPage = () => {
       });
 
       setShowCloseModal(false);
+      setSelectedTransaction(null);
+    }
+  };
+
+  // Handle Timer Submit
+  const handleTimerSubmit = async () => {
+    if (selectedTransaction) {
+      const transactionRef = doc(db, 'transactions', selectedTransaction.id);
+      await updateDoc(transactionRef, {
+        status: 'In-Progress',
+      });
+
+      for (const agentId of selectedTransaction.AssignedAgents || []) {
+        await addDoc(collection(db, 'messages_agents'), {
+          transactionId: selectedTransaction.id,
+          timestamp: new Date(),
+          agentId: agentId,
+          timer: timer,
+          message: 'Manager has set close timer on transaction',
+          type: 'timer',
+        });
+      }
+
+      setShowTimerModal(false);
       setSelectedTransaction(null);
     }
   };
@@ -345,6 +440,12 @@ const ManagerPage = () => {
     );
   };
 
+  // Function to handle Timer
+  const renderTimer = (transactionId) => {
+    return timers[transactionId]?.display || 'Not Set';
+  };
+  
+
   // Render Table Function
   const renderTable = (title, transactions, showAssign, showDecline = true, showCheckbox = false, showDropdown = false, showResult = false) => (
     <div className="mb-8">
@@ -355,6 +456,7 @@ const ManagerPage = () => {
             <th className="border border-gray-700 p-4">Details</th>
             {title !== 'Open Requests' && <th className="border border-gray-700 p-4">Message Count</th>}
             {title !== 'Open Requests' && <th className="border border-gray-700 p-4">Amount Total</th>}
+            {title !== 'Open Requests' && <th className="border border-gray-700 p-4">Timer</th>}
             {title !== 'Open Requests' && <th className="border border-gray-700 p-4">Blended Price</th>}
             <th className="border border-gray-700 p-4">Request By</th>
             <th className="border border-gray-700 p-4">System Date</th>
@@ -366,102 +468,125 @@ const ManagerPage = () => {
           </tr>
         </thead>
         <tbody>
-          {transactions.map((transaction) => (
-            <tr key={transaction.id}>
-              <td className="border border-gray-700 p-4">
-                {`${transaction.bet || ''}, ${transaction.event || ''}, ${transaction.league || ''}, ${transaction.market || ''}`}
-              </td>
-              {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{messages[transaction.id]?.messageCount || 0}</td>}
-              {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{messages[transaction.id]?.amountTotal || 0}</td>}
-              {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{messages[transaction.id]?.blendedPrice.toFixed(2) || 0}</td>}
-              <td className="border border-gray-700 p-4">{transaction.requestby || 'N/A'}</td>
-              <td className="border border-gray-700 p-4">{transaction.systemdate}</td>
-              <td className="border border-gray-700 p-4">{transaction.betlimit || 'N/A'}</td>
-              <td className="border border-gray-700 p-4">{transaction.requestprice || 'N/A'}</td>
-              {showDropdown && (
+        {transactions.map((transaction) => {
+          const timerStatus = timers[transaction.id]?.display;
+          const isFinished = timerStatus === 'Finished';
+          const isAmountZero = messages[transaction.id]?.amountTotal === 0 || messages[transaction.id]?.amountTotal == null;
+
+          return (
+              <tr key={transaction.id}>
                 <td className="border border-gray-700 p-4">
-                  <select
-                    onChange={async (e) => {
-                      const selectedResult = e.target.value;
-                      if (selectedResult) {
-                        // 1. Update the transaction with the selected result in Firestore
-                        const transactionRef = doc(db, 'transactions', transaction.id);
-                        await updateDoc(transactionRef, {
-                          result: selectedResult,
-                          status: 'Closed-Settled' // Optional: Update the status if needed
-                        });
-
-                        // 2. Call calculateAndStorePositions with the transaction ID and selected result
-                        await calculateAndStorePositions(transaction.id, selectedResult);
-
-                        console.log(`Positions calculated and stored for transaction ${transaction.id}`);
-                      }
-                    }}
-                    className="p-2 rounded w-full bg-gray-700 text-white border border-gray-500"
-                  >
-                    <option value="" className="bg-gray-800 text-white">Select Result</option>
-                    <option value="win" className="bg-gray-800 text-white">Win</option>
-                    <option value="win-half" className="bg-gray-800 text-white">Win - Half</option>
-                    <option value="loss" className="bg-gray-800 text-white">Loss</option>
-                    <option value="loss-half" className="bg-gray-800 text-white">Loss - Half</option>
-                    <option value="void" className="bg-gray-800 text-white">Void</option>
-                  </select>
+                  {`${transaction.bet || ''}, ${transaction.event || ''}, ${transaction.league || ''}, ${transaction.market || ''}`}
                 </td>
-              )}              
-            {showResult && <td className="border border-gray-700 p-4">{transaction.result}</td>}
-              <td className="border border-gray-700 p-4">
-                {showAssign && (
+                {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{messages[transaction.id]?.messageCount || 0}</td>}
+                {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{messages[transaction.id]?.amountTotal || 0}</td>}
+                {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{renderTimer(transaction.id)}</td>}
+                {title !== 'Open Requests' && <td className="border border-gray-700 p-4">{messages[transaction.id]?.blendedPrice.toFixed(2) || 0}</td>}
+                <td className="border border-gray-700 p-4">{transaction.requestby || 'N/A'}</td>
+                <td className="border border-gray-700 p-4">{transaction.systemdate}</td>
+                <td className="border border-gray-700 p-4">{transaction.betlimit || 'N/A'}</td>
+                <td className="border border-gray-700 p-4">{transaction.requestprice || 'N/A'}</td>
+                {showDropdown && (
+                  <td className="border border-gray-700 p-4">
+                    <select
+                      onChange={async (e) => {
+                        const selectedResult = e.target.value;
+                        if (selectedResult) {
+                          // 1. Update the transaction with the selected result in Firestore
+                          const transactionRef = doc(db, 'transactions', transaction.id);
+                          await updateDoc(transactionRef, {
+                            result: selectedResult,
+                            status: 'Closed-Settled' // Optional: Update the status if needed
+                          });
+
+                          // 2. Call calculateAndStorePositions with the transaction ID and selected result
+                          await calculateAndStorePositions(transaction.id, selectedResult);
+
+                          console.log(`Positions calculated and stored for transaction ${transaction.id}`);
+                        }
+                      }}
+                      className="p-2 rounded w-full bg-gray-700 text-white border border-gray-500"
+                    >
+                      <option value="" className="bg-gray-800 text-white">Select Result</option>
+                      <option value="win" className="bg-gray-800 text-white">Win</option>
+                      <option value="win-half" className="bg-gray-800 text-white">Win - Half</option>
+                      <option value="loss" className="bg-gray-800 text-white">Loss</option>
+                      <option value="loss-half" className="bg-gray-800 text-white">Loss - Half</option>
+                      <option value="void" className="bg-gray-800 text-white">Void</option>
+                    </select>
+                  </td>
+                )}              
+                {showResult && <td className="border border-gray-700 p-4">{transaction.result}</td>}
+                <td className="border border-gray-700 p-4">
+                  {showAssign && (
+                    <button
+                      onClick={() => handleAssign(transaction)}
+                      className="bg-blue-600 text-white p-2 rounded m-1"
+                    >
+                      Assign
+                    </button>
+                  )}
+                  {showDecline && (
+                    <button
+                      onClick={() => handleDecline(transaction)}
+                      className="bg-red-600 text-white p-2 rounded m-1"
+                      disabled={ !isAmountZero}
+                      style={{
+                        opacity: isAmountZero ? 1 : 0.5,
+                        cursor: isAmountZero ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      Decline
+                    </button>
+                  )}
+                  {title === 'In-Progress' && (
+                    <button
+                      onClick={() => handleClose(transaction)}
+                      className="bg-green-600 text-white p-2 rounded m-1"
+                      disabled={!isFinished}
+                      style={{ opacity: isFinished ? 1 : 0.5, cursor: isFinished ? 'pointer' : 'not-allowed' }}
+                    >
+                      Close
+                    </button>
+                  )}
+                  {/* Add the View Messages button */}
+                  {title === 'In-Progress' && (
+                    <button
+                      onClick={() => handleTimer(transaction)}
+                      className="bg-green-600 text-white p-2 rounded m-1"
+                    >
+                      Timer
+                    </button>
+                  )}
+                  {/* Add the View Messages button */}
                   <button
-                    onClick={() => handleAssign(transaction)}
-                    className="bg-blue-600 text-white p-2 rounded m-1"
+                    onClick={() => handleViewMessages(transaction)}
+                    className="bg-yellow-600 text-white p-2 rounded m-1"
                   >
-                    Assign
+                    View Messages
                   </button>
-                )}
-                {showDecline && (
-                  <button
-                    onClick={() => handleDecline(transaction)}
-                    className="bg-red-600 text-white p-2 rounded m-1"
-                  >
-                    Decline
-                  </button>
-                )}
-                {title === 'In-Progress' && (
-                  <button
-                    onClick={() => handleClose(transaction)}
-                    className="bg-green-600 text-white p-2 rounded m-1"
-                  >
-                    Close
-                  </button>
-                )}
-                {/* Add the View Messages button */}
-                <button
-                  onClick={() => handleViewMessages(transaction)}
-                  className="bg-yellow-600 text-white p-2 rounded m-1"
-                >
-                  View Messages
-                </button>
-                {/* New Results button for Closed-Settled transactions */}
-                {transaction.status === 'Closed-Settled' && (
-                  <button
-                    onClick={() => handleShowResults(transaction)}
-                    className="bg-purple-600 text-white p-2 rounded m-1"
-                  >
-                    Results
-                  </button>                  
-                )}
-                {/* New Client BetSlip button for Closed-UnSettled and Closed-Settled */}
-                {(transaction.status === 'Closed-UnSettled' || transaction.status === 'Closed-Settled') && (
-                  <button
-                    onClick={() => handleShowBetSlip(transaction)}
-                    className="bg-indigo-600 text-white p-2 rounded m-1"
-                  >
-                    Client BetSlip
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
+                  {/* New Results button for Closed-Settled transactions */}
+                  {transaction.status === 'Closed-Settled' && (
+                    <button
+                      onClick={() => handleShowResults(transaction)}
+                      className="bg-purple-600 text-white p-2 rounded m-1"
+                    >
+                      Results
+                    </button>                  
+                  )}
+                  {/* New Client BetSlip button for Closed-UnSettled and Closed-Settled */}
+                  {(transaction.status === 'Closed-UnSettled' || transaction.status === 'Closed-Settled') && (
+                    <button
+                      onClick={() => handleShowBetSlip(transaction)}
+                      className="bg-indigo-600 text-white p-2 rounded m-1"
+                    >
+                      Client BetSlip
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -636,6 +761,37 @@ const ManagerPage = () => {
         </div>        
       )}
 
+      {/* Timer Modal */}
+      {showTimerModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+          <div className="bg-gray-800 p-6 rounded shadow-lg text-white">
+            <h3 className="text-lg font-bold">Notify Close Transaction Timer</h3>
+            {/* Modal Content */}
+            <div className="mt-4">
+              <div className="mt-4">
+                <label>
+                  Seconds Until Close:
+                  <input
+                    type="text"
+                    value={timer}
+                    onChange={(e) => setTimer(e.target.value)}
+                    className="p-2 border border-gray-500 rounded w-full bg-gray-700 text-white"
+                  />
+                </label>
+              </div>
+              <div className="mt-4">
+                <button onClick={handleTimerSubmit} className="bg-green-600 text-white p-2 rounded mr-2">
+                  Submit
+                </button>
+                <button onClick={() => setShowTimerModal(false)} className="bg-gray-500 text-white p-2 rounded">
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>        
+      )}
+
       {/* View Messages */}
       {showMessagesModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -663,8 +819,6 @@ const ManagerPage = () => {
           onClose={handleCloseBetSlipModal}
         />
       )}
-
-
 
     </div>
   );

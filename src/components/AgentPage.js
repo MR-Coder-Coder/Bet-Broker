@@ -22,7 +22,7 @@ const AgentDashboard = () => {
   const [messages, setMessages] = useState([]);
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null); // Ensure you already have this state for transaction selection
-
+  const [timers, setTimers] = useState({});
 
   // Fetch agent and transactions on component mount
   useEffect(() => {
@@ -67,7 +67,8 @@ const AgentDashboard = () => {
                     const messageData = messageDoc.data();
                     return sum + (messageData.amount || 0);
                   }, 0);
-  
+
+                    
                   // Update the transaction with message count and amount total
                   setCurrentOrders((prevOrders) => {
                     return prevOrders.map((order) => {
@@ -94,6 +95,30 @@ const AgentDashboard = () => {
                       return order;
                     });
                   });
+                });
+
+                onSnapshot(messagesQuery, (messagesSnapshot) => {
+                  const transactionTimers = messagesSnapshot.docs
+                    .filter((messageDoc) => messageDoc.data().type === 'timer')
+                    .map((messageDoc) => ({
+                      timestamp: messageDoc.data().timestamp.toMillis(),
+                      timer: parseInt(messageDoc.data().timer, 10),
+                    }));
+
+                  // Sort timers by timestamp and take the most recent one
+                  if (transactionTimers.length > 0) {
+                    transactionTimers.sort((a, b) => b.timestamp - a.timestamp);
+                    const { timestamp, timer } = transactionTimers[0];
+                    const endTime = timestamp + timer * 1000;
+
+                    setTimers((prevTimers) => ({
+                      ...prevTimers,
+                      [doc.id]: {
+                        initialTime: timer,
+                        endTime: endTime,
+                      },
+                    }));
+                  }
                 });
   
                 return { id: doc.id, ...transactionData };
@@ -139,6 +164,32 @@ const AgentDashboard = () => {
       return () => unsubscribeMessages();
     }
   }, [selectedTransaction, agentId]);
+
+  // Countdown timer logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimers((prevTimers) => {
+        const updatedTimers = { ...prevTimers };
+        Object.keys(updatedTimers).forEach((transactionId) => {
+          const currentTime = Date.now();
+          const remainingTime = Math.max(
+            Math.floor((updatedTimers[transactionId].endTime - currentTime) / 1000),
+            0
+          );
+
+          updatedTimers[transactionId].display = remainingTime === 0 ? 'Finished' : `${remainingTime}s`;
+        });
+        return updatedTimers;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timers]);
+
+  // Render the timer column
+  const renderTimer = (transactionId) => {
+    return timers[transactionId]?.display || 'Not Set';
+  };
 
   const handleLogout = async () => {
     try {
@@ -221,6 +272,7 @@ const AgentDashboard = () => {
               <th className="border border-gray-700 p-4">Status</th>
               <th className="border border-gray-700 p-4">Message Count</th>
               <th className="border border-gray-700 p-4">Amount Total</th>
+              <th className="border border-gray-700 p-4">Timer</th>
               <th className="border border-gray-700 p-4">Actions</th> {/* Keep actions for both tables */}
             </tr>
           </thead>
@@ -228,6 +280,7 @@ const AgentDashboard = () => {
             {sortedTransactions.map((transaction) => {
               const [team, value] = transaction.bet ? transaction.bet.split('@').map(str => str.trim()) : ['', ''];
               const minimumPrice = `${team} @ ${transaction.seekprice || value}`;
+              const isNotFinished = timers[transaction.id]?.display !== 'Finished';
   
               return (
                 <tr key={transaction.id}>
@@ -245,7 +298,8 @@ const AgentDashboard = () => {
                   <td className="border border-gray-700 p-4">{transaction.status}</td>
                   <td className="border border-gray-700 p-4">{transaction.messageCount || 0}</td>
                   <td className="border border-gray-700 p-4">{transaction.amountTotal || 0}</td>
-  
+                  <td className="border border-gray-700 p-4">{renderTimer(transaction.id)}</td>
+
                   {/* Conditional rendering for actions */}
                   <td className="border border-gray-700 p-4">
                     {title === 'Current Orders' && (
@@ -256,6 +310,11 @@ const AgentDashboard = () => {
                             setShowFillOrderModal(true);
                           }}
                           className="bg-blue-600 text-white p-2 rounded m-1"
+                          disabled={!isNotFinished} // Enable if timer is NOT finished
+                          style={{
+                            opacity: isNotFinished ? 1 : 0.5,
+                            cursor: isNotFinished ? 'pointer' : 'not-allowed',
+                          }}
                         >
                           Fill Order
                         </button>

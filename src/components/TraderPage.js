@@ -19,6 +19,7 @@ const AgentDashboardTrader = () => {
   const [showFillOrderModal, setShowFillOrderModal] = useState(false);
   const [showMessagesModal, setShowMessagesModal] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [timers, setTimers] = useState({});
 
   // Fetch agent and transactions on component mount
   useEffect(() => {
@@ -91,6 +92,30 @@ const AgentDashboardTrader = () => {
                     });
                   });
                 });
+
+                // Handle timer logic within the messages onSnapshot
+                onSnapshot(messagesQuery, (messagesSnapshot) => {
+                  const transactionTimers = messagesSnapshot.docs
+                    .filter((messageDoc) => messageDoc.data().type === 'timer')
+                    .map((messageDoc) => ({
+                      timestamp: messageDoc.data().timestamp.toMillis(),
+                      timer: parseInt(messageDoc.data().timer, 10),
+                    }));
+
+                  if (transactionTimers.length > 0) {
+                    transactionTimers.sort((a, b) => b.timestamp - a.timestamp);
+                    const { timestamp, timer } = transactionTimers[0];
+                    const endTime = timestamp + timer * 1000;
+
+                    setTimers((prevTimers) => ({
+                      ...prevTimers,
+                      [doc.id]: {
+                        initialTime: timer,
+                        endTime: endTime,
+                      },
+                    }));
+                  }
+                });
   
                 return { id: doc.id, ...transactionData };
               }));
@@ -136,6 +161,32 @@ const AgentDashboardTrader = () => {
     }
   }, [selectedTransaction, agentId]);
 
+  // Countdown timer logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimers((prevTimers) => {
+        const updatedTimers = { ...prevTimers };
+        Object.keys(updatedTimers).forEach((transactionId) => {
+          const currentTime = Date.now();
+          const remainingTime = Math.max(
+            Math.floor((updatedTimers[transactionId].endTime - currentTime) / 1000),
+            0
+          );
+
+          updatedTimers[transactionId].display = remainingTime === 0 ? 'Finished' : `${remainingTime}s`;
+        });
+        return updatedTimers;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timers]);
+
+  // Render the timer column
+  const renderTimer = (transactionId) => {
+    return timers[transactionId]?.display || 'Not Set';
+  };
+  
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -193,6 +244,7 @@ const AgentDashboardTrader = () => {
               <th className="border border-gray-700 p-4">Status</th>
               <th className="border border-gray-700 p-4">Message Count</th>
               <th className="border border-gray-700 p-4">Amount Total</th>
+              <th className="border border-gray-700 p-4">Timer</th>
               <th className="border border-gray-700 p-4">Actions</th> {/* Keep actions for both tables */}
             </tr>
           </thead>
@@ -200,6 +252,7 @@ const AgentDashboardTrader = () => {
             {sortedTransactions.map((transaction) => {
               const [team, value] = transaction.bet ? transaction.bet.split('@').map(str => str.trim()) : ['', ''];
               const minimumPrice = `${team} @ ${transaction.seekprice || value}`;
+              const isTimerFinished = timers[transaction.id]?.display === 'Finished';
   
               return (
                 <tr key={transaction.id}>
@@ -217,7 +270,8 @@ const AgentDashboardTrader = () => {
                   <td className="border border-gray-700 p-4">{transaction.status}</td>
                   <td className="border border-gray-700 p-4">{transaction.messageCount || 0}</td>
                   <td className="border border-gray-700 p-4">{transaction.amountTotal || 0}</td>
-  
+                  <td className="border border-gray-700 p-4">{renderTimer(transaction.id)}</td>
+
                   {/* Conditional rendering for actions */}
                   <td className="border border-gray-700 p-4">
                     {title === 'Current Orders' && (
@@ -228,6 +282,11 @@ const AgentDashboardTrader = () => {
                             setShowFillOrderModal(true);
                           }}
                           className="bg-blue-600 text-white p-2 rounded m-1"
+                          disabled={!isTimerFinished}
+                          style={{
+                            opacity: isTimerFinished ? 1 : 0.5,
+                            cursor: isTimerFinished ? 'pointer' : 'not-allowed',
+                          }}
                         >
                           Fill Order
                         </button>
