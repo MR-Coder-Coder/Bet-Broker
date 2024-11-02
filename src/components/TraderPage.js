@@ -282,10 +282,10 @@ const AgentDashboardTrader = () => {
                             setShowFillOrderModal(true);
                           }}
                           className="bg-blue-600 text-white p-2 rounded m-1"
-                          disabled={!isTimerFinished}
+                          disabled={isTimerFinished} // Disable only if the timer is finished
                           style={{
-                            opacity: isTimerFinished ? 1 : 0.5,
-                            cursor: isTimerFinished ? 'pointer' : 'not-allowed',
+                            opacity: isTimerFinished ? 0.5 : 1,
+                            cursor: isTimerFinished ? 'not-allowed' : 'pointer',
                           }}
                         >
                           Fill Order
