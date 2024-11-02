@@ -6,6 +6,8 @@ import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '../firebase';
 import ImageUploadModal from './ImageUploadModal'; // Assuming you named the new component
 import { format } from 'date-fns'; // Add this to format the timestamp
+import BetSlipModal from './BetSlipModal';
+
 
 const AgentDashboardTrader = () => {
   const navigate = useNavigate();
@@ -23,8 +25,8 @@ const AgentDashboardTrader = () => {
   const [messages, setMessages] = useState([]);
   const [timers, setTimers] = useState({});
   const [showImageUpload, setShowImageUpload] = useState(false);
-  
-
+  const [showBetSlipModal, setShowBetSlipModal] = useState(false);
+  const [selectedBetSlipTransaction, setSelectedBetSlipTransaction] = useState(null);
 
   // Fetch agent and transactions on component mount
   useEffect(() => {
@@ -187,6 +189,18 @@ const AgentDashboardTrader = () => {
     return () => clearInterval(interval);
   }, [timers]);
 
+  // Function to show Client Bet Slip
+  const handleShowBetSlip = (transaction) => {
+    setSelectedBetSlipTransaction(transaction);
+    setShowBetSlipModal(true);
+  };
+
+  // Function to close the Bet Slip modal
+  const handleCloseBetSlipModal = () => {
+    setShowBetSlipModal(false);
+    setSelectedBetSlipTransaction(null);
+  };
+
   // Render the timer column
   const renderTimer = (transactionId) => {
     return timers[transactionId]?.display || 'Not Set';
@@ -336,6 +350,14 @@ const AgentDashboardTrader = () => {
                         className="bg-purple-600 text-white p-2 rounded"
                       >
                         Attach Image & Note
+                      </button>
+                    )}
+                    {title === 'Past Orders' && (
+                      <button
+                        onClick={() => handleShowBetSlip(transaction)}
+                        className="bg-indigo-600 text-white p-2 rounded m-1"
+                      >
+                        Client BetSlip
                       </button>
                     )}
                       <button
@@ -551,6 +573,15 @@ const AgentDashboardTrader = () => {
           </div>
         </div>
       )}
+
+      {/* Client BetSlip Modal */}
+      {showBetSlipModal && selectedBetSlipTransaction && (
+        <BetSlipModal
+          transaction={selectedBetSlipTransaction}
+          onClose={handleCloseBetSlipModal}
+        />
+      )}
+          
 
 
     </div>
