@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { getDocs, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
-import { db, auth } from '../firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from '../firebase';
+import ImageUploadModal from './ImageUploadModal'; // Assuming you named the new component
 import { format } from 'date-fns'; // Add this to format the timestamp
 
 const AgentDashboardTrader = () => {
@@ -20,6 +22,9 @@ const AgentDashboardTrader = () => {
   const [showMessagesModal, setShowMessagesModal] = useState(false);
   const [messages, setMessages] = useState([]);
   const [timers, setTimers] = useState({});
+  const [showImageUpload, setShowImageUpload] = useState(false);
+  
+
 
   // Fetch agent and transactions on component mount
   useEffect(() => {
@@ -224,6 +229,30 @@ const AgentDashboardTrader = () => {
     setNotes('');
   };
 
+  const handleImageUploadSubmit = async (image, notes) => {
+    if (!image || !selectedTransaction) return;
+    try {
+      // Upload the image to Firebase Storage
+      const imageRef = ref(storage, `messages_images/${selectedTransaction.id}_${Date.now()}.jpg`);
+      await uploadString(imageRef, image, 'data_url');
+      const imageUrl = await getDownloadURL(imageRef);
+  
+      // Store the message with image URL in Firestore
+      await addDoc(collection(db, 'messages_agents'), {
+        agentId,
+        transactionId: selectedTransaction.id,
+        timestamp: new Date(),
+        type: 'agent_note_with_image',
+        agentName,
+        notes,
+        imageUrl,
+      });
+      setShowImageUpload(false); // Close modal after submission
+    } catch (error) {
+      console.error('Error uploading image:', error);
+    }
+  };
+  
   const renderTable = (title, transactions, showActions = true) => {
     // Sort transactions from newest to oldest based on `systemdate`
     const sortedTransactions = transactions.sort((a, b) => {
@@ -298,16 +327,27 @@ const AgentDashboardTrader = () => {
                         </button>
                       </>
                     )}
-                    <button
-                      onClick={() => {
-                        setSelectedTransaction(transaction);
-                        setShowMessagesModal(true);
-                      }}
-                      className="bg-yellow-600 text-white p-2 rounded m-1"
-                    >
-                      View Messages
-                    </button>
-                  </td>
+                    {title === 'Past Orders' && (
+                      <button
+                        onClick={() => {
+                          setSelectedTransaction(transaction);
+                          setShowImageUpload(true);
+                        }}
+                        className="bg-purple-600 text-white p-2 rounded"
+                      >
+                        Attach Image & Note
+                      </button>
+                    )}
+                      <button
+                        onClick={() => {
+                          setSelectedTransaction(transaction);
+                          setShowMessagesModal(true);
+                        }}
+                        className="bg-yellow-600 text-white p-2 rounded m-1"
+                      >
+                        View Messages
+                      </button>                  
+                    </td>
                 </tr>
               );
             })}
@@ -440,6 +480,14 @@ const AgentDashboardTrader = () => {
       {renderTable('Current Orders', currentOrders)}
       {renderTable('Past Orders', pastOrders, true)}
 
+      {/* Render image upload modal */}
+      <ImageUploadModal
+        isOpen={showImageUpload}
+        onClose={() => setShowImageUpload(false)}
+        onSubmit={handleImageUploadSubmit}
+      />
+
+
       {/* Fill Order Modal */}
       {showFillOrderModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
@@ -489,17 +537,21 @@ const AgentDashboardTrader = () => {
       {/* View Messages Modal */}
       {showMessagesModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-gray-800 p-6 rounded shadow-lg text-white">
+          <div className="bg-gray-800 text-white p-6 rounded-lg max-h-[80vh] overflow-y-auto w-[90%] sm:w-[70%] lg:w-[50%]">
             <h3 className="text-lg font-bold">Messages for Transaction</h3>
             <ul className="mt-4 space-y-2">
               {messages.map((message) => renderMessage(message))}
             </ul>
-            <button onClick={() => setShowMessagesModal(false)} className="bg-gray-500 text-white p-2 rounded mt-4">
+            <button
+              onClick={() => setShowMessagesModal(false)}
+              className="mt-4 bg-gray-500 text-white p-2 rounded w-full hover:bg-gray-600"
+            >
               Close
             </button>
           </div>
         </div>
       )}
+
 
     </div>
   );

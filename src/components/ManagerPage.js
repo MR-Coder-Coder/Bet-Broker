@@ -795,16 +795,19 @@ const ManagerPage = () => {
       {/* View Messages */}
       {showMessagesModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-          <div className="bg-gray-800 p-6 rounded shadow-lg text-white">
+          <div className="bg-gray-800 text-white p-6 rounded-lg max-h-[80vh] overflow-y-auto w-[90%] sm:w-[70%] lg:w-[50%]">
             <h3 className="text-lg font-bold">Messages for Transaction</h3>
             <ul className="mt-4 space-y-2">
               {transactionMessages.map((message) => renderMessage(message))}
             </ul>
-            <button onClick={() => setShowMessagesModal(false)} className="bg-gray-500 text-white p-2 rounded mt-4">
+            <button
+              onClick={() => setShowMessagesModal(false)}
+              className="mt-4 bg-gray-500 text-white p-2 rounded w-full hover:bg-gray-600"
+            >
               Close
             </button>
           </div>
-        </div>
+        </div>      
       )}
 
       {/* Results Modal */}
