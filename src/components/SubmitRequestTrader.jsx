@@ -16,7 +16,7 @@ const SubmitRequest = () => {
     league: "World Open",
     market: "Tennis - A Winner",
     notes: "No Additional Notes",
-    origin: "https://m518.mos077.com",
+    origin: "trader-dashboard",
     requestby: "Client Name",
     requestprice: 1,
     seekprice: 1.5,

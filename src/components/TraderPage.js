@@ -402,6 +402,11 @@ const AgentDashboardTrader = () => {
                         <button
                           onClick={() => handleFinishOrder(transaction)}
                           className="bg-green-600 text-white p-2 rounded m-1"
+                          disabled={transaction.origin !== "trader-dashboard"} // Add condition for origin
+                          style={{
+                            opacity: transaction.origin === "trader-dashboard" ? 1 : 0.5,
+                            cursor: transaction.origin === "trader-dashboard" ? 'pointer' : 'not-allowed',
+                          }}
                         >
                           Finish
                         </button>

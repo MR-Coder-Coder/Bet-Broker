@@ -16,7 +16,7 @@ const SubmitRequest = () => {
     league: "International Friendly",
     market: "Soccer 1 X 2 - 1st Half",
     notes: "No Additional Notes",
-    origin: "https://m518.mos077.com",
+    origin: "manager-dashboard",
     requestby: "Client Name",
     requestprice: 3.5,
     seekprice: 3.51,
