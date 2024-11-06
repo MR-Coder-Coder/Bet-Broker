@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { getDocs, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
+import { getDocs, collection, query, where, onSnapshot, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
@@ -9,6 +9,8 @@ import { format } from 'date-fns'; // Add this to format the timestamp
 
 const AgentDashboard = () => {
   const navigate = useNavigate();
+  const [isOnline, setIsOnline] = useState(true); // Default to online
+  const user = auth.currentUser;
   
   const [price, setPrice] = useState(0);
   const [amount, setAmount] = useState(0);
@@ -30,6 +32,28 @@ const AgentDashboard = () => {
 
   // Adding the Flash Effect to Updated Rows
   const [updatedTransactionIds, setUpdatedTransactionIds] = useState([]);
+
+  useEffect(() => {
+    if (user) {
+      // When the user logs in, set their status to online by default
+      updateDoc(doc(db, 'users', user.uid), {
+        isOnline: true,
+        lastActive: serverTimestamp(),
+      });
+    }
+  }, [user]);
+
+  const handleToggleOnlineStatus = async () => {
+    setIsOnline((prevStatus) => !prevStatus); // Toggle the online status
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        isOnline: !isOnline,
+        lastActive: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error("Error updating online status:", error);
+    }
+  };
 
   // Fetch agent and transactions on component mount
   useEffect(() => {
@@ -219,13 +243,27 @@ const AgentDashboard = () => {
   };
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigate('/');
-    } catch (error) {
-      console.error('Error during logout:', error);
+    const user = auth.currentUser;
+  
+    if (user) {
+      try {
+        // Set `isOnline` to false and update the `lastActive` timestamp
+        await updateDoc(doc(db, 'users', user.uid), {
+          isOnline: false,
+          lastActive: serverTimestamp(),
+        });
+  
+        // Sign the user out
+        await signOut(auth);
+  
+        // Redirect to the login or homepage
+        navigate('/');
+      } catch (error) {
+        console.error('Error during logout:', error);
+      }
     }
   };
+  
 
   const handleFillOrder = () => {
     if (!selectedTransaction) return;
@@ -492,6 +530,16 @@ const AgentDashboard = () => {
       </button>
 
       <h1 className="text-3xl font-bold mb-6">Agent Dashboard</h1>
+      <div>
+        <label className="flex items-center space-x-2">
+          <span>Appear Online</span>
+          <input
+            type="checkbox"
+            checked={isOnline}
+            onChange={handleToggleOnlineStatus}
+          />
+        </label>
+      </div>
       {agentId && agentName && <h2 className="text-xl mb-4">Welcome, {agentName} (Agent ID: {agentId})</h2>}
       {renderTable('Current Orders', currentOrders)}
       {renderTable('Past Orders', pastOrders, true)}

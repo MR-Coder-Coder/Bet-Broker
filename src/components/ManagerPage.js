@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { collection, query, where, onSnapshot, updateDoc, doc, addDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, updateDoc, doc, addDoc, getDocs, getDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { db, auth } from '../firebase';
@@ -240,12 +240,43 @@ const ManagerPage = () => {
   };
 
   // Handle Assign Transaction
-  const handleAssign = (transaction) => {
+  const handleAssign = async (transaction) => {
     setSelectedTransaction(transaction);
     setBetLimit(transaction.betlimit || '');
     setSeekPrice(transaction.seekprice || '');
     setAgentMessage('');
     setShowAssignModal(true);
+  
+    const agentsRef = collection(db, 'agents');
+    const agentList = [];
+  
+    // Fetch agents from `agents` collection
+    const agentsSnapshot = await getDocs(agentsRef);
+    for (const agentDoc of agentsSnapshot.docs) {
+      const agentData = agentDoc.data();
+      const agentId = agentDoc.id;
+  
+      // If `agent_users` exists, use the first user ID (assuming only one user per agent)
+      if (agentData.agent_users && agentData.agent_users.length > 0) {
+        const userId = agentData.agent_users[0];
+  
+        // Fetch user details from `users` collection using the user ID
+        const userDocRef = doc(db, 'users', userId);
+        const userDoc = await getDoc(userDocRef);
+  
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          agentList.push({
+            id: agentId,
+            name: agentData.name,
+            isOnline: userData.isOnline || false,
+            lastActive: userData.lastActive?.toMillis() || null,
+          });
+        }
+      }
+    }
+  
+    setAgents(agentList); // Set the agent list in the state
   };
 
   // Handle Close Transaction
@@ -677,24 +708,39 @@ const ManagerPage = () => {
             {/* Modal Content */}
             <div className="mt-4">
               <h4>Select Agents</h4>
-              {agents.map((agent) => (
-                <div key={agent.id}>
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      value={agent.id}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedAgents((prev) => [...prev, agent.id]);
-                        } else {
-                          setSelectedAgents((prev) => prev.filter((id) => id !== agent.id));
-                        }
-                      }}
-                    />
-                    <span>{agent.name}</span>
-                  </label>
-                </div>
-              ))}
+              {agents.map((agent) => {
+                const onlineDuration = agent.isOnline
+                  ? Math.floor((Date.now() - agent.lastActive) / 60000)
+                  : null;
+
+                return (
+                  <div key={agent.id}>
+                    <label className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        value={agent.id}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedAgents((prev) => [...prev, agent.id]);
+                          } else {
+                            setSelectedAgents((prev) => prev.filter((id) => id !== agent.id));
+                          }
+                        }}
+                        className={`${agent.isOnline ? 'text-green-600 font-bold' : ''}`}
+                      />
+                      <span className={agent.isOnline ? 'text-green-600 font-bold' : 'text-gray-300'}>
+                        {agent.name}
+                      </span>
+                      {agent.isOnline && onlineDuration !== null && (
+                        <span className="text-sm text-gray-400 ml-2">
+                          {onlineDuration} {onlineDuration === 1 ? 'minute' : 'minutes'} online
+                        </span>
+                      )}
+                    </label>
+                  </div>
+                );
+              })}
+
               <div className="mt-4">
                 <label>
                   Bet Limit:
