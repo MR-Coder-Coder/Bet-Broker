@@ -4,7 +4,17 @@ module.exports = {
     "./src/**/*.{js,jsx,ts,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      keyframes: {
+        flashBg: {
+          '0%': { backgroundColor: '#ffd700' },
+          '100%': { backgroundColor: 'inherit' },
+        },
+      },
+      animation: {
+        flash: 'flashBg 1s ease-in-out',
+      },
+    },
   },
   plugins: [],
 }

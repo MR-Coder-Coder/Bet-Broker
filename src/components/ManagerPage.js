@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { collection, query, where, onSnapshot, updateDoc, doc, addDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
@@ -37,6 +37,14 @@ const ManagerPage = () => {
   const [showBetSlipModal, setShowBetSlipModal] = useState(false);
   const [selectedBetSlipTransaction, setSelectedBetSlipTransaction] = useState(null);
 
+  // Add for Sound  
+  const soundRef = useRef(new Audio('/notify.mp4'));
+  const previousTransactionsRef = useRef([]); // useRef instead of useState
+
+  // Adding the Flash Effect to Updated Rows
+  const [updatedTransactionIds, setUpdatedTransactionIds] = useState([]);
+
+
   // Fetching Transactions, Messages, and Agents Data
   useEffect(() => {
     const transactionsRef = collection(db, 'transactions');
@@ -52,7 +60,24 @@ const ManagerPage = () => {
         return dateB - dateA; // Newest date first
       });
 
+      // Detect changes by comparing to previous transactions
+      const changedIds = sortedTransactions
+        .filter((newTransaction) => {
+          const prevTransaction = previousTransactionsRef.current.find(t => t.id === newTransaction.id);
+          return prevTransaction && JSON.stringify(prevTransaction) !== JSON.stringify(newTransaction);
+        })
+        .map(t => t.id);
+
+      setUpdatedTransactionIds(changedIds);
       setTransactions(sortedTransactions);
+
+      // Play sound if there are changes
+      if (changedIds.length > 0) {
+        soundRef.current.play();
+      }
+
+      // Update previousTransactionsRef with the latest transactions
+      previousTransactionsRef.current = sortedTransactions;
     });
 
     // Set up a real-time listener for messages_agents
@@ -474,7 +499,10 @@ const ManagerPage = () => {
           const isAmountZero = messages[transaction.id]?.amountTotal === 0 || messages[transaction.id]?.amountTotal == null;
 
           return (
-              <tr key={transaction.id}>
+              <tr 
+                key={transaction.id}
+                className={`border border-gray-700 p-4 ${updatedTransactionIds.includes(transaction.id) ? 'animate-flash' : ''}`}
+              >
                 <td className="border border-gray-700 p-4">
                   {`${transaction.bet || ''}, ${transaction.event || ''}, ${transaction.league || ''}, ${transaction.market || ''}`}
                 </td>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { getDocs, collection, query, where, onSnapshot, addDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
@@ -23,6 +23,13 @@ const AgentDashboard = () => {
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null); // Ensure you already have this state for transaction selection
   const [timers, setTimers] = useState({});
+
+  // Add for Sound  
+  const soundRef = useRef(new Audio('/notify.mp4'));
+  const previousTransactionsRef = useRef([]); // useRef instead of useState
+
+  // Adding the Flash Effect to Updated Rows
+  const [updatedTransactionIds, setUpdatedTransactionIds] = useState([]);
 
   // Fetch agent and transactions on component mount
   useEffect(() => {
@@ -121,9 +128,29 @@ const AgentDashboard = () => {
                   }
                 });
   
+              // Detect changes by comparing with previous transactions
+              const changedIds = querySnapshot.docs
+                  .map((doc) => ({ id: doc.id, ...doc.data() }))
+                  .filter((newTransaction) => {
+                    const prevTransaction = previousTransactionsRef.current.find(t => t.id === newTransaction.id);
+                    return prevTransaction && JSON.stringify(prevTransaction) !== JSON.stringify(newTransaction);
+                  })
+                  .map(t => t.id);
+
+                // Play sound if there are changes
+                if (changedIds.length > 0) {
+                  soundRef.current.play();
+                }
+
+                // Update state with the changed transaction IDs for flash effect
+                setUpdatedTransactionIds(changedIds);
+
+                // Update previousTransactionsRef with the latest transactions
+                previousTransactionsRef.current = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
                 return { id: doc.id, ...transactionData };
               }));
-  
+
               const current = transactions.filter((t) => t.status === 'In-Progress');
               const past = transactions.filter((t) => t.status !== 'In-Progress');
   
@@ -283,7 +310,10 @@ const AgentDashboard = () => {
               const isNotFinished = timers[transaction.id]?.display !== 'Finished';
   
               return (
-                <tr key={transaction.id}>
+                <tr 
+                  key={transaction.id}
+                  className={`border border-gray-700 p-4 ${updatedTransactionIds.includes(transaction.id) ? 'animate-flash' : ''}`}
+                >
                   <td className="border border-gray-700 p-4">
                     {transaction.systemdate 
                       ? format(new Date(transaction.systemdate), 'MM/dd/yyyy HH:mm')
