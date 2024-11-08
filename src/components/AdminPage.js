@@ -1,23 +1,25 @@
 // AdminPage.js
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const AdminPage = () => {
   const [users, setUsers] = useState([]);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      const usersCollection = collection(db, 'users');
-      const usersSnapshot = await getDocs(usersCollection);
-      const usersData = usersSnapshot.docs.map(doc => ({
+    // Create a real-time listener for the users collection
+    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const usersData = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
       setUsers(usersData);
-    };
+    }, (error) => {
+      console.error("Error fetching users:", error);
+    });
 
-    fetchUsers();
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
   }, []);
 
   // Helper function to convert Firestore timestamp
