@@ -8,7 +8,6 @@ import calculateAndStorePositions from './calculatePositions'; // Import the uti
 import ResultsModal from './ResultsModal'; // Import the ResultsModal component
 import BetSlipModal from './BetSlipModal'; // Adjust the path based on your folder structure
 
-
 const ManagerPage = () => {
   const navigate = useNavigate();
   
@@ -501,7 +500,6 @@ const ManagerPage = () => {
     return timers[transactionId]?.display || 'Not Set';
   };
   
-
   // Render Table Function
   const renderTable = (title, transactions, showAssign, showDecline = true, showCheckbox = false, showDropdown = false, showResult = false) => (
     <div className="mb-8">
