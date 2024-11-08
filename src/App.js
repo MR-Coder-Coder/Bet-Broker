@@ -13,6 +13,7 @@ import Reports from './components/Reports'; // Import Reports component
 import './output.css';
 import SubmitRequest from "./components/SubmitRequest";
 import SubmitRequestTrader from "./components/SubmitRequestTrader";
+import NotFoundPage from './components/NotFoundPage'; // New import for NotFoundPage
 
 
 function App() {
@@ -29,6 +30,8 @@ function App() {
         <Route path="/reports" element={<Reports />} />  {/* Add route for reports */}
         <Route path="/submit-request" element={<SubmitRequest />} />
         <Route path="/submit-request-trader" element={<SubmitRequestTrader />} />
+        {/* Fallback route for undefined paths */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Router>
   );
