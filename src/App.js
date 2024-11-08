@@ -14,6 +14,7 @@ import './output.css';
 import SubmitRequest from "./components/SubmitRequest";
 import SubmitRequestTrader from "./components/SubmitRequestTrader";
 import NotFoundPage from './components/NotFoundPage'; // New import for NotFoundPage
+import ProtectedRoute from './components/ProtectedRoute';
 
 
 function App() {
@@ -22,7 +23,14 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/admin" element={<AdminPage />} />
-        <Route path="/manager" element={<ManagerPage />} />
+        <Route
+          path="/manager"
+          element={
+            <ProtectedRoute requiredRole="manager">
+              <ManagerPage />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/client" element={<ClientPage />} />
         <Route path="/agent" element={<AgentPage />} />
         <Route path="/trader" element={<TraderPage />} />
